@@ -1,0 +1,32 @@
+{
+    "clean": "./dist",
+    "yuic": [
+        "-jar",
+        "/usr/local/bin/yuicompressor-2.4.7/build/yuicompressor-2.4.7.jar",
+        "--line-break",
+        "1000"
+    ],
+    "packs": [
+        {
+            "dest": "dist/chatterbox.js",
+            "mini": "dist/chatterbox.min.js",
+            "files": "src/"
+        },
+        {
+            "dest": "dist/dAmn.js",
+            "mini": "dist/dAmn.min.js",
+            "files": "src/dAmn"
+        },
+        {
+            "sass": true,
+            "options": [
+                "--style",
+                "expanded"
+            ],
+            "dest": "dist/chatterbox.css",
+            "mini": "dist/chatterbox.min.css",
+            "files": "css/chatterbox.scss"
+        }
+    ],
+    "post": ["./mvlh"]
+}
