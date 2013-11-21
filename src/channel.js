@@ -476,10 +476,14 @@ Chatterbox.Channel.prototype.log_whois = function( data ) {
             var stamp = (new Date - (rcon.online * 1000));
             mcon.push([ 'online', DateStamp(stamp / 1000) + formatTime(' [{HH}:{mm}:{ss}]', new Date(stamp)) ]);
         }
+        
         if( rcon.idle )
             mcon.push([ 'idle', timeLengthString(rcon.idle) ]);
-        if( rcon.agent )
-            mcon.push([ 'agent', rcon.agent ]);
+        
+        if( rcon.agent ) {
+            mcon = mcon.concat( rcon.agent );
+        }
+        
         if( rcon.debug )
             mcon.push([ 'debug', rcon.debug ]);
         
