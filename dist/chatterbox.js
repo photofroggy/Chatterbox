@@ -507,6 +507,12 @@ Chatterbox.UI.prototype.build = function( control, navigation, chatbook ) {
     
     } );
     
+    this.client.bind( 'pkt.whois', function( event, client ) {
+        
+        ui.chatbook.current.log_whois( event.info );
+    
+    } );
+    
     // Channel removed from client.
     this.client.middle(
         'ns.remove',
