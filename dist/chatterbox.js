@@ -5,7 +5,7 @@
  */
 var Chatterbox = {};
 
-Chatterbox.VERSION = '0.20.105';
+Chatterbox.VERSION = '0.20.106';
 Chatterbox.STATE = 'beta';
 
 Chatterbox._gum = function(  ) {};
@@ -21,7 +21,7 @@ Chatterbox._gum = function(  ) {};
         if( method == 'init' || ui === undefined ) {
             if( ui == undefined ) {
                 ui = new Chatterbox.UI( $(this), client, options, ($.browser.mozilla || false) );
-                $(window).resize(ui.resize);
+                $(window).resize(function() { ui.resize(); });
                 setInterval(function(  ) { ui.loop(); }, 120000);
                 ui.build();
             }
