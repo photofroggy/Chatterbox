@@ -227,6 +227,7 @@ Chatterbox.UI = function( view, client, options, mozilla, events ) {
     this.LIB = 'Chatterbox';
     this.VERSION = Chatterbox.VERSION;
     this.STATE = Chatterbox.STATE;
+    this.ext = {};
     
 };
 
@@ -2606,6 +2607,7 @@ Chatterbox.Chatbook.prototype.log_message = function( message, event ) {
         } catch( err ) {
             console.log( '>> Failed to log message for', event.sns, '::' );
             console.log( '>>', event.html );
+            console.log( err );
         }
     }
 

@@ -227,6 +227,7 @@ Chatterbox.UI = function( view, client, options, mozilla, events ) {
     this.LIB = 'Chatterbox';
     this.VERSION = Chatterbox.VERSION;
     this.STATE = Chatterbox.STATE;
+    this.ext = {};
     
 };
 
