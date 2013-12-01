@@ -4,7 +4,8 @@ Chatterbox.Extension = function( ui, client ) {
 
     var storage = client.storage.folder('ui');
     var ext = {
-        page: {}
+        page: {},
+        cmd: {}
     };
     
     ui.storage = storage;
@@ -15,6 +16,14 @@ Chatterbox.Extension = function( ui, client ) {
         ui.on('settings.open.ran', ext.page.about);
         ui.on('settings.save.ui', ext.save);
         ui.on('settings.save', function(  ) { client.config_save(); } );
+        
+        client.bind( 'cmd.gettitle', ext.cmd.gett );
+        client.bind( 'cmd.gettopic', ext.cmd.gett );
+        
+        client.bind('cmd.clear', ext.cmd.clear );
+        client.bind('cmd.clearall', ext.cmd.clearall );
+        
+        client.bind( 'cmd.theme', ext.cmd.theme );
         
         Chatterbox.Extension.Away( ui, client, ext );
         
@@ -192,6 +201,52 @@ Chatterbox.Extension = function( ui, client ) {
                     by ~<a href="http://photofroggy.deviantart.com/">photofroggy</a>'
         });
     
+    };
+    
+    // Get the title or topic.
+    ext.cmd.gett = function( event, client ) {
+        var which = event.cmd.indexOf('title') > -1 ? 'title' : 'topic';
+        ui.control.set_text('/' + which + ' ' + client.channel(event.target).info[which].content);
+    };
+    
+    ext.cmd.theme = function( event, client ) {
+        ui.theme(event.args.split(' ').shift());
+    };
+    
+    // Clear the channel's log.
+    ext.cmd.clear = function( e, client ) {
+        if( e.args.length > 0 ) {
+            var users = e.args.split(' ');
+            for( var i in users ) {
+                if( !users.hasOwnProperty(i) )
+                    continue;
+                ui.channel( e.target ).clear_user( users[i] );
+            }
+        } else {
+            ui.channel( e.target ).clear();
+        }
+    };
+    
+    // Clear all channel logs.
+    ext.cmd.clearall = function( e, client ) {
+        var method = null;
+        
+        if( e.args.length > 0 ) {
+            var users = e.args.split(' ');
+            method = function( ns, channel ) {
+                for( var i in users ) {
+                    if( !users.hasOwnProperty(i) )
+                        continue;
+                    channel.clear_user( users[i] );
+                }
+            };
+        } else {
+            method = function( ns, channel ) {
+                channel.clear();
+            };
+        }
+        
+        ui.chatbook.each( method, true );
     };
     
     
