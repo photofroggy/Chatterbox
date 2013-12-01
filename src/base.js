@@ -485,6 +485,8 @@ Chatterbox.UI.prototype.build = function( control, navigation, chatbook ) {
         }
     });
     
+    this.ext.defaults = Chatterbox.Extension( this, this.client );
+    
     // Focusing stuff?
     var ui = this;
     $(window).focus( function(  ) {

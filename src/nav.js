@@ -41,7 +41,7 @@ Chatterbox.Navigation = function( ui ) {
                 'settings': new Chatterbox.Settings.Config(nav.manager)
             };
             
-            nav.configure_page( evt );
+            //nav.configure_page( evt );
             nav.manager.trigger('settings.open', evt);
             nav.manager.trigger('settings.open.ran', evt);
             

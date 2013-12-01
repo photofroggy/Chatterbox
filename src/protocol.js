@@ -199,6 +199,8 @@ Chatterbox.Protocol = function(  ) {
 Chatterbox.Protocol.prototype.extend_messages = function( messages ) {
 
     for( var key in messages ) {
+        if( !this.messages.hasOwnProperty(key) )
+            continue;
         this.messages[key] = messages[key];
     }
 
@@ -317,7 +319,7 @@ Chatterbox.Protocol.LogMessage.prototype.render = function( format ) {
         if( key instanceof Array )
             key = key[1];
         
-        if( !this.event.hasOwnProperty(key) || key == 'pkt' )
+        if( key == 'pkt' )
             continue;
         
         d = this.event[key] || '';
