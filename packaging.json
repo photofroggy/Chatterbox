@@ -8,9 +8,30 @@
     ],
     "packs": [
         {
+            "dest": "dist/extension.js",
+            "mini": "dist/extension.min.js",
+            "files": [
+                "src/extension/base.js",
+                "src/extension/away.js"
+            ]
+        },
+        {
             "dest": "dist/chatterbox.js",
             "mini": "dist/chatterbox.min.js",
-            "files": "src/"
+            "files": [
+                "src/base.js",
+                "src/nav.js",
+                "src/control.js",
+                "src/chatbook.js",
+                "src/basetab.js",
+                "src/channel.js",
+                "src/protocol.js",
+                "src/pager.js",
+                "src/popup.js",
+                "src/settings.js",
+                "src/templates.js",
+                "dist/extension.js"
+            ]
         },
         {
             "dest": "dist/dAmn.js",

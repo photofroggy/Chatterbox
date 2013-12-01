@@ -5,7 +5,7 @@
  */
 var Chatterbox = {};
 
-Chatterbox.VERSION = '0.20.106';
+Chatterbox.VERSION = '0.20.107';
 Chatterbox.STATE = 'beta';
 
 Chatterbox._gum = function(  ) {};
@@ -879,6 +879,1353 @@ Chatterbox.UI.prototype.add_theme = function( theme ) {
 Chatterbox.UI.prototype.developer = function( mode ) {
     this.settings.developer = mode;
     this.chatbook.developer();
+};
+
+
+/**
+ * Navigation UI element. Provides helpers for controlling the chat navigation.
+ *
+ * @class Chatterbox.Navigation
+ * @constructor
+ * @param ui {Object} Chatterbox.UI object.
+ */
+Chatterbox.Navigation = function( ui ) {
+
+    this.manager = ui;
+    this.showclose = this.manager.settings.tabclose;
+    this.settings = {};
+    this.settings.open = false;
+    
+    /* UI Elements
+     * Something similar to the channel elements object.
+     */
+    this.el = {
+        n: this.manager.view.find('nav.tabs'),                            // Navigation bar
+        tw: this.manager.view.find('nav.tabs div.tabwrap'),
+        t: this.manager.view.find('nav.tabs #chattabs'),                  // Tabs
+        b: this.manager.view.find('nav.tabs #tabnav'),                    // Buttons
+        l: this.manager.view.find('nav.tabs #tabnav .arrow_left'),        // Tab left navigation button
+        r: this.manager.view.find('nav.tabs #tabnav .arrow_right'),       // Tab right.
+        s: this.manager.view.find('nav.tabs #tabnav #settings-button'),   // Settings
+    };
+    
+    if( !this.showclose ) {
+        if( !this.el.t.hasClass('hc') )
+            this.el.t.addClass('hc');
+    }
+    
+    var nav = this;
+    this.el.s.click(
+        function( event ) {
+            if( nav.settings.open )
+                return false;
+            
+            var evt = {
+                'e': event,
+                'settings': new Chatterbox.Settings.Config(nav.manager)
+            };
+            
+            //nav.configure_page( evt );
+            nav.manager.trigger('settings.open', evt);
+            nav.manager.trigger('settings.open.ran', evt);
+            
+            var about = evt.settings.page('About');
+            about.item('text', {
+                'ref': 'about-chatterbox',
+                'wclass': 'centered faint',
+                'text': 'Using <a href="http://github.com/photofroggy/wsc/">Chatterbox</a> version ' + Chatterbox.VERSION + ' ' + Chatterbox.STATE + ' by ~<a href="http://photofroggy.deviantart.com/">photofroggy</a>.'
+            });
+            
+            nav.settings.window = new Chatterbox.Settings( nav.manager, evt.settings );
+            nav.settings.window.build();
+            nav.settings.open = true;
+            return false;
+        }
+    );
+    
+    this.el.l.click(
+        function(  ) {
+            nav.manager.channel_left();
+            return false;
+        }
+    );
+    
+    this.el.r.click(
+        function(  ) {
+            nav.manager.channel_right();
+            return false;
+        }
+    );
+
+};
+
+/**
+ * Configure the main settings page of the settings popup.
+ *
+ * @method configure_page
+ * @param event {Object} Event object.
+ */
+Chatterbox.Navigation.prototype.configure_page = function( event ) {
+
+    var ui = this.manager;
+    var page = event.settings.page('Main');
+    var orig = {};
+    orig.theme = replaceAll(ui.settings.theme, 'wsct_', '');
+    orig.clock = ui.clock();
+    orig.tc = ui.nav.closer();
+    
+    var themes = [];
+    for( i in ui.settings.themes ) {
+        name = replaceAll(ui.settings.themes[i], 'wsct_', '');
+        themes.push({ 'value': name, 'title': name, 'selected': orig.theme == name })
+    }
+    
+    page.item('Form', {
+        'ref': 'ui',
+        'title': 'UI',
+        'hint': '<b>Timestamp</b><br/>Choose between a 24 hour clock and\
+                a 12 hour clock.\n\n<b>Theme</b><br/>Change the look of the\
+                client.\n\n<b>Close Buttons</b><br/>Turn tab close buttons on/off.',
+        'fields': [
+            ['Dropdown', {
+                'ref': 'theme',
+                'label': 'Theme',
+                'items': themes
+            }],
+            ['Dropdown', {
+                'ref': 'clock',
+                'label': 'Timestamp Format',
+                'items': [
+                    { 'value': '24', 'title': '24 hour', 'selected': orig.clock },
+                    { 'value': '12', 'title': '12 hour', 'selected': !orig.clock }
+                ]
+            }],
+            ['Checkbox', {
+                'ref': 'tabclose',
+                'label': 'Close Buttons',
+                'items': [
+                    { 'value': 'yes', 'title': 'On', 'selected': orig.tc }
+                ]
+            }],
+        ],
+        'event': {
+            'change': function( event ) {
+                ui.clock(event.data.clock == '24');
+                ui.theme(event.data.theme);
+                ui.nav.closer(event.data.tabclose.indexOf('yes') > -1);
+            },
+            'save': function( event ) {
+                orig.clock = ui.clock();
+                orig.theme = replaceAll(ui.theme(), 'wsct_', '');
+                orig.tc = ui.nav.closer();
+                
+                ui.trigger('settings.save.ui', {
+                    'clock': orig.clock,
+                    'tabclose': orig.tc,
+                    'theme': 'wsct_' + orig.theme
+                } );
+            },
+            'close': function( event ) {
+                ui.clock(orig.clock);
+                ui.theme(orig.theme);
+                ui.nav.closer(orig.tc);
+            }
+        }
+    });
+
+};
+
+/**
+ * Get the height of the navigation bar.
+ *
+ * @method height
+ * @return {Integer} The height of the navigation bar in pixels.
+ */
+Chatterbox.Navigation.prototype.height = function(  ) {
+    var h = this.el.n.outerHeight();
+    return h;
+};
+
+/**
+ * Add a button to the top button row.
+ *
+ * @method add_button
+ */
+Chatterbox.Navigation.prototype.add_button = function( options ) {
+
+    options = Object.extend( {
+        'label': 'New',
+        'icon': false,
+        'href': '#button',
+        'title': 'Button.',
+        'handler': function(  ) {}
+    }, ( options || {} ) );
+    
+    if( options.icon !== false ) {
+        options.icon = ' iconic ' + options.icon;
+    } else {
+        options.icon = ' text';
+    }
+    
+    this.el.b.prepend(Chatterbox.render('nav_button', options));
+    var button = this.el.b.find('a[href='+options.href+'].button');
+    
+    button.click( function( event ) {
+        options['handler']();
+        return false;
+    } );
+    
+    this.resize();
+    
+    return button;
+
+};
+
+/**
+ * Add a channel tab to the navigation bar.
+ * 
+ * @method add_tab
+ * @param selector {String} Shorthand lower case name for the channel with no prefixes.
+ * @param ns {String} Shorthand namespace for the channel. Used as the label
+ *   for the tab.
+ */
+Chatterbox.Navigation.prototype.add_tab = function( selector, ns ) {
+    this.el.t.append(Chatterbox.render('tab', {'selector': selector, 'ns': ns}));
+    return this.el.t.find('#' + selector + '-tab');
+};
+
+/**
+ * Resize the tab bar.
+ * 
+ * @method resize
+ */
+Chatterbox.Navigation.prototype.resize = function(  ) {
+
+    this.el.tw.width( this.el.n.width() - this.el.b.outerWidth() - 20 );
+    if( this.settings.open ) {
+        this.settings.window.resize();
+    }
+
+};
+
+/**
+ * Set or get the visibility of tab close buttons.
+ * 
+ * @method closer
+ * @param [visible] {Boolean} Should the close buttons be shown?
+ * @return {Boolean} Whether or not the close buttons are visible.
+ */
+Chatterbox.Navigation.prototype.closer = function( visible ) {
+
+    if( visible == undefined || visible == this.showclose )
+        return this.showclose;
+    
+    this.showclose = visible;
+    if( this.showclose ) {
+        if( !this.el.t.hasClass('hc') )
+            return;
+        this.el.t.removeClass('hc');
+        return;
+    }
+    
+    if( this.el.t.hasClass('hc') )
+        return;
+    this.el.t.addClass('hc');
+
+};
+
+
+/**
+ * This object provides an interface for the chat input panel.
+ * 
+ * @class Chatterbox.Control
+ * @constructor
+ * @param ui {Object} Chatterbox.UI object.
+ */
+Chatterbox.Control = function( ui ) {
+
+    this.manager = ui;
+    this.manager.view.append( Chatterbox.template.control );
+    this.view = this.manager.view.find('div.chatcontrol');
+    this.ml = false;
+    
+    this.history = {};
+    this.tab = {
+        hit: false,
+        cache: '',
+        matched: [],
+        index: -1,
+        type: 0,
+        prefix: ['', '/', ''],
+    };
+    
+    /**
+     * UI elements
+     */
+    this.el = {
+        form: this.view.find('form.msg'),                       // Input form
+        i: {                                                    // Input field
+            s: this.view.find('form.msg input.msg'),            //      Single line input
+            m: this.view.find('form.msg textarea.msg'),         //      Multi line input
+            c: null,                                            //      Current input element
+            t: this.view.find('ul.buttons a[href~=#multiline].button')   //      Toggle multiline button
+        },
+        brow: {
+            m: this.view.find('div.brow'),                               // Control brow
+            b: this.view.find('div.brow ul.buttons'),
+            s: this.view.find('div.brow ul.states')
+        }
+    };
+    // Default input mode is single line.
+    this.el.i.c = this.el.i.s;
+    
+    var ctrl = this;
+    this.el.i.t.click(function( event ) {
+        ctrl.multiline( !ctrl.multiline() );
+        return false;
+    });
+    
+    // Input handling.
+    this.el.i.s.keydown( function( event ) { return ctrl.keypress( event ); } );
+    this.el.i.m.keydown( function( event ) { return ctrl.keypress( event ); } );
+    this.el.form.submit( function( event ) { return ctrl.submit( event ); } );
+    
+    // FORMATTING BUTTONS
+    
+    this.add_button({
+        'label': '<b>b</b>',
+        'icon': false,
+        'href': '#bold',
+        'title': 'Bold text',
+        'handler': function(  ) {
+            ctrl.surroundtext( ctrl.el.i.c[0], '<b>', '</b>');
+        }
+    });
+    
+    this.add_button({
+        'label': '<i>i</i>',
+        'icon': false,
+        'href': '#italic',
+        'title': 'Italic text',
+        'handler': function(  ) {
+            ctrl.surroundtext( ctrl.el.i.c[0], '<i>', '</i>');
+        }
+    });
+    
+    this.add_button({
+        'label': '<u>u</u>',
+        'icon': false,
+        'href': '#underline',
+        'title': 'Underline text',
+        'handler': function(  ) {
+            ctrl.surroundtext( ctrl.el.i.c[0], '<u>', '</u>');
+        }
+    });
+    
+    this.add_button({
+        'label': '<sup>sup</sup>',
+        'icon': false,
+        'href': '#sup',
+        'title': 'Superscript',
+        'handler': function(  ) {
+            ctrl.surroundtext( ctrl.el.i.c[0], '<sup>', '</sup>');
+        }
+    });
+    
+    this.add_button({
+        'label': '<sub>sub</sub>',
+        'icon': false,
+        'href': '#sub',
+        'title': 'Subscript',
+        'handler': function(  ) {
+            ctrl.surroundtext( ctrl.el.i.c[0], '<sub>', '</sub>');
+        }
+    });
+
+};
+
+/**
+ * Lifted from superdAmn.
+ *
+ * SURROUNDTEXT: Adds text around selected text (from deviantPlus)
+ * @method surroundtext
+ * @param tf
+ * @param left
+ * @param right
+ */
+Chatterbox.Control.prototype.surroundtext = function(tf, left, right){
+    // Thanks, Zikes
+    var tmpScroll     = tf.scrollTop;
+    var t             = tf.value, s = tf.selectionStart, e = tf.selectionEnd;
+    var selectedText  = tf.value.substring(s,e);
+    tf.value          = t.substring(0,s) + left + selectedText + right + t.substring(e);
+    tf.selectionStart = s + left.length;
+    tf.selectionEnd   = s + left.length + selectedText.length;
+    tf.scrollTop      = tmpScroll;
+    tf.focus();
+};
+
+
+/**
+ * Steal the lime light. Brings the cursor to the input panel.
+ * 
+ * @method focus
+ */
+Chatterbox.Control.prototype.focus = function( ) {
+    this.el.i.c.focus();
+};
+
+/**
+ * Resize the control panel.
+ *
+ * @method resize
+ */
+Chatterbox.Control.prototype.resize = function( ) {
+    w = this.manager.view.width();
+    this.view.css({
+        width: '100%'});
+    // Form dimensionals.
+    this.el.form.css({'width': this.manager.view.width() - 20});
+    this.el.i.s.css({'width': this.manager.view.width() - 100});
+    this.el.i.m.css({'width': this.manager.view.width() - 90});
+};
+
+
+/**
+ * Get the height of the input panel.
+ * 
+ * @method height
+ */
+Chatterbox.Control.prototype.height = function( ) {
+    var h = this.view.outerHeight();
+    return h;
+};
+
+/**
+ * Set or get multiline input mode.
+ * 
+ * @method multiline
+ * @param [on] {Boolean} Use multiline input?
+ * @return {Boolean} Current mode.
+ */
+Chatterbox.Control.prototype.multiline = function( on ) {
+
+    if( on == undefined || this.ml == on )
+        return this.ml;
+    
+    this.ml = on;
+    var off = ( this.ml ? 's' : 'm' );
+    on = ( this.ml ? 'm' : 's' );
+    
+    this.el.i[off].css('display', 'none');
+    this.el.i[on].css('display', 'inline-block');
+    this.el.i.c = this.el.i[on];
+    this.manager.resize();
+    return this.ml;
+
+};
+
+/**
+ * Add a button to the control panel button row.
+ * 
+ * @method add_button
+ * @param options {Object} Configuration options for the button.
+ * @return {Object} DOM element or something.
+ */
+Chatterbox.Control.prototype.add_button = function( options ) {
+
+    options = Object.extend( {
+        'label': 'New',
+        'icon': false,
+        'href': '#button',
+        'title': 'Button.',
+        'handler': function(  ) {}
+    }, ( options || {} ) );
+    
+    if( options.icon !== false ) {
+        options.icon = ' iconic ' + options.icon;
+    } else {
+        options.icon = ' text';
+    }
+    
+    this.el.brow.b.append(Chatterbox.render('brow_button', options));
+    var button = this.el.brow.b.find('a[href='+options.href+'].button');
+    
+    button.click( function( event ) {
+        options['handler']();
+        return false;
+    } );
+    
+    return button;
+
+};
+
+/**
+ * Add status text to the control panel button row.
+ * 
+ * @method add_state
+ * @param options {Object} Status configuration options
+ */
+Chatterbox.Control.prototype.add_state = function( options ) {
+
+    options = Object.extend( {
+        'ref': 'state',
+        'label': 'some state'
+    }, ( options || {} ) );
+    
+    var state = this.el.brow.s.find( 'li#' + options.ref );
+    
+    if( state.length == 0 ) {
+        this.el.brow.s.append(Chatterbox.render('brow_state', options));
+        return this.el.brow.s.find('li#' + options.ref);
+    }
+    
+    state.html( options.label );
+    return state;
+
+};
+
+/**
+ * Remove a status item from the control panel button row.
+ * 
+ * @method rem_state
+ * @param ref {String} Reference ID for the button
+ */
+Chatterbox.Control.prototype.rem_state = function( ref ) {
+
+    return this.el.brow.s.find( 'li#' + ref ).remove();
+
+};
+
+/**
+ * Get the last word from the input box.
+ * 
+ * @method chomp
+ * @return {String} The last word in the input box.
+ */
+Chatterbox.Control.prototype.chomp = function( ) {
+    var d = this.el.i.c.val();
+    var i = d.lastIndexOf(' ');
+    
+    if( i == -1 ) {
+        this.el.i.c.val('');
+        return d;
+    }
+    
+    var chunk = d.slice(i + 1);
+    this.el.i.c.val( d.slice(0, i) );
+    
+    if( chunk.length == 0 )
+        return this.chomp();
+    
+    return chunk;
+};
+
+/**
+ * Append text to the end of the input box.
+ * 
+ * @method unchomp
+ * @param data {String} Text to append.
+ */
+Chatterbox.Control.prototype.unchomp = function( data ) {
+    var d = this.el.i.c.val();
+    if( !d )
+        this.el.i.c.val(data);
+    else
+        this.el.i.c.val(d + ' ' + data);
+};
+
+/**
+ * Get the text in the input box.
+ * 
+ * @method get_text
+ * @return {String} The text currently in the input box.
+ */
+Chatterbox.Control.prototype.get_text = function( text ) {
+
+    if( text == undefined )
+        return this.el.i.c.val();
+    this.el.i.c.val( text || '' );
+    return this.el.i.c.val();
+
+};
+
+/**
+ * Set the text in the input box.
+ * 
+ * @method set_text
+ * @param text {String} The text to put in the input box.
+ */
+Chatterbox.Control.prototype.set_text = function( text ) {
+
+    this.el.i.c.val( text || '' );
+
+};
+
+/**
+ * Save current input in a cache.
+ * 
+ * @method cache_input
+ * @param previous {Object} Channel to cache input for.
+ * @param chan {Object} Newly selected channel
+ */
+Chatterbox.Control.prototype.cache_input = function( previous, chan ) {
+
+    var h = this.get_history( previous.namespace );
+    
+    if( h.index > -1 )
+        return;
+    
+    h.tmp = this.get_text();
+    this.set_text(this.get_history( chan.namespace ).tmp);
+
+};
+
+/**
+ * Get a channel's input history object.
+ * 
+ * If no history object exists for the given channel, a new object is created
+ * and stored.
+ * 
+ * @method get_history
+ * @param [namespace] {String} Channel to get the history of. If not given, the
+ *   channel currently being viewed is used.
+ * @return history {Object} Channel's input history data.
+ */
+Chatterbox.Control.prototype.get_history = function( namespace ) {
+
+    if( !namespace ) {
+        if( !this.manager.chatbook.current ) {
+             namespace = '~monitor';
+        }
+    }
+    
+    namespace = namespace || this.manager.chatbook.current.namespace;
+    
+    if( !this.history[namespace] )
+        this.history[namespace] = { index: -1, list: [], tmp: '' };
+    
+    return this.history[namespace];
+
+};
+
+/**
+ * Append an item to the current channel's input history.
+ * 
+ * @method append_history
+ * @param data {String} Input string to store.
+ */
+Chatterbox.Control.prototype.append_history = function( data ) {
+
+    if( !data )
+        return;
+    
+    var h = this.get_history();
+    h.list.unshift(data);
+    h.index = -1;
+    
+    if( h.list.length > 100 )
+        h.list.pop();
+
+};
+
+/**
+ * Scroll through the current channel's input history.
+ * 
+ * @method scroll_history
+ * @param up {Boolean} Scroll up?
+ */
+Chatterbox.Control.prototype.scroll_history = function( up ) {
+
+    var history = this.get_history();
+    var data = this.get_text();
+    
+    if( history.index == -1 )
+        if( data )
+            history.tmp = data;
+    else
+        history.list[history.index] = data;
+    
+    if( up ) {
+        if( history.list.length > 0 && history.index < (history.list.length - 1) )
+            history.index++;
+    } else {
+        if( history.index > -1)
+            history.index--;
+    }
+    
+    this.set_text(history.list[history.index] || history.tmp);
+
+};
+
+/**
+ * Handle the tab character being pressed.
+ * 
+ * @method tab_item
+ * @param event {Object} Event data.
+ */
+Chatterbox.Control.prototype.tab_item = function( event ) {
+
+    if( !this.tab.hit )
+        this.start_tab(event);
+    
+    this.chomp();
+    this.tab.index++;
+    
+    if( this.tab.index >= this.tab.matched.length )
+        this.tab.index = -1;
+    
+    if( this.tab.index == -1 ) {
+        this.unchomp(this.tab.prefix[this.tab.type] + this.tab.cache);
+        return;
+    }
+    
+    var suf = this.get_text() == '' ? ( this.tab.type == 0 ? ': ' : ' ' ) : '';
+    this.unchomp(this.tab.prefix[this.tab.type] + this.tab.matched[this.tab.index] + suf);
+
+};
+
+/**
+ * Start tab complete capabilities by compiling a list of items that match the
+ * current user input.
+ * 
+ * TODO: make this actually work in its new found home
+ * 
+ * @method start_tab
+ * @param event {Object} Event data.
+ */
+Chatterbox.Control.prototype.start_tab = function( event ) {
+
+    this.tab.hit = true;
+    this.tab.index = -1;
+    this.tab.matched = [];
+    this.tab.type = 0;
+    
+    // We only tab the last word in the input. Slice!
+    var needle = this.chomp();
+    this.unchomp(needle);
+    
+    // Check if we's dealing with commands here
+    if( needle[0] == "/" || needle[0] == "#" || needle[0] == '@' ) {
+        this.tab.type = needle[0] == '/' ? 1 : 2;
+        if( needle[0] == '/' )
+            needle = needle.slice(1);
+    } else {
+        this.tab.type = 0;
+    }
+    
+    this.tab.cache = needle;
+    needle = needle.toLowerCase();
+    
+    // Nows we have to find our matches. Fun.
+    // Lets start with matching users.
+    this.tab.matched = [];
+    if( this.tab.type == 0 ) {
+        var c = this.manager.client.channel( this.manager.chatbook.current.namespace );
+        for( var user in c.info['members'] ) {
+            if( user.toLowerCase().indexOf(needle) == 0 )
+                this.tab.matched.push(user);
+        }
+    } else if( this.tab.type == 1 ) {
+        // Matching with commands.
+        var cmd = '';
+        for( var i in this.manager.client.cmds ) {
+            cmd = this.manager.client.cmds[i];
+            if( cmd.indexOf(needle) == 0 )
+                this.tab.matched.push(cmd);
+        }
+    } else if( this.tab.type == 2 ) {
+        // Matching with channels.
+        var ctrl = this;
+        this.manager.client.each_channel( function( ns, chan ) {
+            if( chan.namespace.toLowerCase().indexOf(needle) == 0 )
+                ctrl.tab.matched.push(chan.namespace);
+        } );
+    }
+
+};
+
+/**
+ * Clear the tabbing cache.
+ * 
+ * @method end_tab
+ * @param event {Object} Event data.
+ */
+Chatterbox.Control.prototype.end_tab = function( event ) {
+
+    this.tab.hit = false;
+    this.tab.matched = [];
+    this.tab.cache = '';
+    this.tab.index = -1;
+
+};
+
+/**
+ * Handle the send button being pressed.
+ * 
+ * @method submit
+ * @param event {Object} Event data.
+ */
+Chatterbox.Control.prototype.submit = function( event ) {
+
+    var msg = this.get_text();
+    this.append_history(msg);
+    this.set_text('');
+    this.handle(event, msg);
+    return false;
+
+};
+/**
+ * Processes a key being typed in the input area.
+ * 
+ * @method keypress
+ * @param event {Object} Event data.
+ */
+Chatterbox.Control.prototype.keypress = function( event ) {
+
+    var key = event.which || event.keyCode;
+    var ut = this.tab.hit;
+    var bubble = false;
+    
+    switch( key ) {
+        case 13: // Enter
+            if( !this.multiline() ) {
+                this.submit(event);
+            } else {
+                if( event.shiftKey ) {
+                    this.submit(event);
+                } else {
+                    bubble = true;
+                }
+            }
+            break;
+        case 38: // Up
+            if( !this.multiline() ) {
+                this.scroll_history(true);
+                break;
+            }
+            bubble = true;
+            break;
+        case 40: // Down
+            if( !this.multiline() ) {
+                this.scroll_history(false);
+                break;
+            }
+            bubble = true;
+            break;
+        case 9: // Tab
+            if( event.shiftKey ) {
+                this.manager.channel_right();
+            } else {
+                this.tab_item( event );
+                ut = false;
+            }
+            break;
+        case 219: // [
+            if( event.ctrlKey ) {
+                this.manager.channel_left();
+            } else {
+                bubble = true;
+            }
+            break;
+        case 221: // ] (using instead of +)
+            if( event.ctrlKey ) {
+                this.manager.channel_right();
+            } else {
+                bubble = true;
+            }
+            break;
+        default:
+            bubble = true;
+            break;
+    }
+    
+    if( ut )
+        this.end_tab( event );
+    
+    return bubble;
+
+};
+
+/**
+ * Handle some user input.
+ * 
+ * @method handle
+ * @param event {Object} Event data.
+ * @param data {String} Input message given by the user.
+ */
+Chatterbox.Control.prototype.handle = function( event, data ) {
+
+    if( data == '' )
+        return;
+    
+    if( !this.manager.chatbook.current )
+        return;
+    
+    var autocmd = false;
+    
+    if( data[0] != '/' ) {
+        autocmd = true;
+    }
+    
+    data = (event.shiftKey ? '/npmsg ' : ( data[0] == '/' ? '' : '/say ' )) + data;
+    data = data.slice(1);
+    var bits = data.split(' ');
+    var cmdn = bits.shift().toLowerCase();
+    var ens = this.manager.chatbook.current.namespace;
+    var etarget = ens;
+    
+    if( !autocmd && bits[0] ) {
+        var hash = bits[0][0];
+        if( (hash == '#' || hash == '@') && bits[0].length > 1 ) {
+            etarget = this.manager.format_ns(bits.shift());
+        }
+    }
+    
+    var arg = bits.join(' ');
+    
+    var fired = this.manager.client.trigger('cmd.' + cmdn, {
+        name: 'cmd',
+        cmd: cmdn,
+        args: arg,
+        target: etarget,
+        ns: ens
+    });
+    
+    if( fired == 0 ) {
+        this.manager.pager.notice({
+            'ref': 'cmd-fail',
+            'heading': 'Command failed',
+            'content': '"' + cmdn + '" is not a command.'
+        }, false, 5000 );
+    }
+
+};
+
+/**
+ * Object for managing the chatbook portion of the UI.
+ *
+ * @class Chatterbox.Chatbook
+ * @constructor
+ * @param ui {Object} Chatterbox.UI object.
+ */
+Chatterbox.Chatbook = function( ui ) {
+    
+    this.manager = ui;
+    this.view = this.manager.view.find('div.chatbook');
+    this.chan = {};
+    this.trail = [];
+    this.current = null;
+    
+    this.manager.on( 'tab.close.clicked', function( event, ui ) {
+        ui.chatbook.remove_channel(event.ns);
+    });
+    
+};
+
+/**
+ * Return the height of the chatbook.
+ *
+ * @method height
+ */
+Chatterbox.Chatbook.prototype.height = function() {
+    return this.view.height();
+};
+
+/**
+ * Return the width of the chatbook.
+ *
+ * @method height
+ */
+Chatterbox.Chatbook.prototype.width = function() {
+    return this.view.width();
+};
+
+/**
+ * Resize the chatbook view pane.
+ * 
+ * @method resize
+ * @param [height=600] {Integer} The height to set the view pane to.
+ */
+Chatterbox.Chatbook.prototype.resize = function( height ) {
+    height = height || 600;
+    var width = this.view.innerWidth();
+    
+    for( var select in this.chan ) {
+        if( !this.chan.hasOwnProperty( select ) )
+            continue;
+        
+        var chan = this.chan[select];
+        chan.resize( width, height );
+    }
+};
+
+/**
+ * Called every now and then.
+ * Does stuff like clear channels of excess log messages.
+ * Maybe this is something that the UI lib should handle.
+ * 
+ * @method loop
+ */
+Chatterbox.Chatbook.prototype.loop = function(  ) {
+
+    for( select in this.chan ) {
+        this.chan[select].loop();
+    }
+
+};
+
+/**
+ * Get or set the channel object associated with the given namespace.
+ * 
+ * @method channel
+ * @param namespace {String} The namespace to set or get.
+ * @param [chan] {Object} A wsc channel object representing the channel specified.
+ * @return {Object} The channel object representing the channel defined by `namespace`
+ */
+Chatterbox.Chatbook.prototype.channel = function( namespace, chan ) {
+    namespace = this.manager.format_ns(namespace).toLowerCase();
+    
+    if( !this.chan[namespace] && chan )
+        this.chan[namespace] = chan;
+    
+    return this.chan[namespace];
+};
+
+/**
+ * Determine how many channels the ui has open. Hidden channels are
+ * not included in this, and we don't include the first channel because
+ * there should always be at least one non-hidden channel present in the
+ * ui.
+ * 
+ * @method channels
+ * @return [Integer] Number of channels open in the ui.
+ */
+Chatterbox.Chatbook.prototype.channels = function( ) {
+    chans = -1;
+    for(ns in this.chan) {
+        if( this.chan[ns].hidden )
+            continue;
+        chans++;
+    }
+    return chans;
+};
+
+/**
+ * Create a channel in the UI.
+ * 
+ * @method create_channel
+ * @param ns {String} Namespace of the channel to create.
+ * @param hidden {Boolean} Should the tab be hidden?
+ * @param monitor {Boolean} Is this channel the monitor?
+ * @return {Object} WscUIChannel object.
+ */
+Chatterbox.Chatbook.prototype.create_channel = function( ns, hidden, monitor ) {
+    var chan = this.channel(ns, this.channel_object(ns, hidden, monitor));
+    chan.build();
+    // Update the paper trail.
+    if( this.trail.indexOf(chan.namespace) == -1 ) {
+        this.trail.push(chan.namespace);
+    }
+    
+    if( !chan.visible )
+        this.toggle_channel(ns);
+    
+    this.manager.resize();
+    return chan;
+};
+
+/**
+ * Create a new channel panel object.
+ * Override this method to use a different type of channel object.
+ * 
+ * @method channel_object
+ * @param ns {String} Namespace of the channel.
+ * @param hidden {Boolean} Should the tab be hidden?
+ * @return {Object} An object representing a channel UI.
+ */
+Chatterbox.Chatbook.prototype.channel_object = function( ns, hidden ) {
+    return new Chatterbox.Channel( this.manager, ns, hidden );
+};
+
+/**
+ * Select which channel is currently being viewed.
+ * 
+ * @method toggle_channel
+ * @param ns {String} Namespace of the channel to view.
+ */
+Chatterbox.Chatbook.prototype.toggle_channel = function( ns ) {
+    var chan = this.channel(ns);
+    var prev = chan;
+    
+    if( !chan )
+        return;
+    
+    if( chan.hidden ) {
+        if( this.current && this.current == chan )
+            return;
+        if( !this.manager.settings.developer ) {
+            chan.hide();
+            return;
+        }
+    }
+    
+    if(this.current) {
+        if(this.current == chan)
+            return;
+        // Hide previous channel, if any.
+        this.current.hide();
+        prev = this.current;
+    } else {
+        if( this.manager.monitoro !== null )
+            this.manager.monitoro.hide();
+    }
+    
+    // Show clicked channel.
+    chan.show();
+    this.manager.control.focus();
+    this.current = chan;
+    this.manager.resize();
+    this.manager.control.cache_input( prev, chan );
+    
+    this.manager.trigger( 'channel.selected', {
+        'ns': chan.raw,
+        'chan': chan,
+        'prev': prev
+    } );
+    
+    this.manager.client.select_ns( chan.raw );
+};
+
+/**
+ * Remove a channel from the UI.
+ * 
+ * @method remove_channel
+ * @param ns {String} Name of the channel to remove.
+ */
+Chatterbox.Chatbook.prototype.remove_channel = function( ns ) {
+    var chan = this.channel(ns);
+    
+    if( !chan )
+        return;
+    
+    if( this.channels() == 0 && !chan.hidden ) 
+        return;
+    
+    chan.remove();
+    delete this.chan[chan.raw.toLowerCase()];
+    
+    if( this.current == chan )
+        this.channel_left();
+    
+    var rpos = this.trail.indexOf(chan.namespace);
+    this.trail.splice(rpos, 1);
+};
+
+/**
+ * Switch to the channel left of the current channel.
+ * 
+ * @method channel_left
+ */
+Chatterbox.Chatbook.prototype.channel_left = function(  ) {
+
+    var ns = this.current.namespace;
+    var index = this.trail.indexOf(ns);
+    
+    if( index < 0 )
+        return;
+    
+    var nc = null;
+    while( true ) {
+        try {
+            nc = this.channel(this.trail[--index]);
+        } catch( err ) {
+            index = this.trail.length - 1;
+            nc = this.channel(this.trail[index]);
+        }
+        
+        if( !nc.hidden )
+            break;
+        
+        if( this.manager.settings.developer )
+            break;
+    }
+    
+    this.toggle_channel(nc.namespace);
+
+};
+
+/**
+ * Switch to the channel right of the current channel.
+ * 
+ * @method channel_right
+ */
+Chatterbox.Chatbook.prototype.channel_right = function(  ) {
+
+    var ns = this.current.namespace;
+    var index = this.trail.indexOf(ns);
+    
+    if( index == -1 )
+        return;
+    
+    var nc = null;
+    while( true ) {
+        try {
+            nc = this.channel(this.trail[++index]);
+        } catch( err ) {
+            index = 0;
+            nc = this.channel(this.trail[0]);
+        }
+        if( !nc.hidden )
+            break;
+        
+        if( this.manager.settings.developer )
+            break;
+    }
+    
+    this.toggle_channel(nc.namespace);
+
+};
+
+/**
+ * Iterate through the different channels.
+ * 
+ * @method each
+ * @param method {Function} Function to call for each channel.
+ */
+Chatterbox.Chatbook.prototype.each = function( method ) {
+    
+    var chan = null;
+    
+    for( var ns in this.chan ) {
+        if( !this.chan.hasOwnProperty(ns) )
+            continue;
+        
+        chan = this.chan[ns];
+        
+        if( method( chan.namespace, chan ) === false )
+            break;
+    }
+    
+};
+
+/**
+ * Display a server message across all open channels.
+ * 
+ * @method server_message
+ * @param msg {String} Message to display.
+ * @param [info] {String} Additional data to display.
+ */
+Chatterbox.Chatbook.prototype.server_message = function( msg, info ) {
+
+    for( ns in this.chan ) {
+        this.chan[ns].server_message(msg, info);
+    }
+
+};
+
+/**
+ * Display a log item across all open channels.
+ * 
+ * @method log_item
+ * @param msg {String} Message to display.
+ */
+Chatterbox.Chatbook.prototype.log_item = function( msg ) {
+
+    for( ns in this.chan ) {
+        this.chan[ns].log_item(msg);
+    }
+
+};
+
+/**
+ * Display a log item across all open channels.
+ * 
+ * @method log_item
+ * @param msg {String} Message to display.
+ */
+Chatterbox.Chatbook.prototype.log = function( msg ) {
+
+    for( ns in this.chan ) {
+        this.chan[ns].log(msg);
+    }
+
+};
+
+/**
+ * Handle a log message.
+ * @method log_message
+ * @param message {Object} Log message object
+ * @param event {Object} Event data
+ */
+Chatterbox.Chatbook.prototype.log_message = function( message, event ) {
+
+    try {
+        if( !message.global ) {
+            if( !message.monitor ) {
+                this.channel( event.ns ).log_item( event );
+            } else {
+                this.manager.monitoro.log_item( event );
+            }
+        } else {
+            this.log_item( event );
+        }
+    } catch( err ) {
+        try {
+            this.ui.monitoro.server_message( 'Failed to log for', event.sns, event.html );
+        } catch( err ) {
+            console.log( '>> Failed to log message for', event.sns, '::' );
+            console.log( '>>', event.html );
+            console.log( err );
+        }
+    }
+
+};
+
+/**
+ * Rewrite timestamps for all open channels.
+ * 
+ * @method retime
+ */
+Chatterbox.Chatbook.prototype.retime = function(  ) {
+
+    for( ns in this.chan ) {
+        this.chan[ns].retime();
+    }
+
+};
+
+/**
+ * Toggle the developer mode of each channel.
+ *
+ * @method developer
+ */
+Chatterbox.Chatbook.prototype.developer = function(  ) {
+    this.each( function( ns, chan ) {
+        chan.developer();
+    } );
+};
+
+/**
+ * Handle a packet event.
+ * @method handle
+ * @param event {Object} Event data
+ * @param client {Object} Reference to the client
+ */
+Chatterbox.Chatbook.prototype.handle = function( event, client ) {
+
+    var ui = this.manager;
+    var chan = this.channel( event.ns );
+    
+    if( !chan )
+        return;
+    
+    var meth = 'pkt_' + event.name;
+    
+    try {
+        chan[meth]( event, client );
+    } catch( err ) {}
+
 };
 
 
@@ -2236,1552 +3583,361 @@ Chatterbox.Channel.prototype.pkt_property = function( event, client ) {
 
 
 /**
- * Object for managing the chatbook portion of the UI.
+ * Rendering for dAmn-like protocols.
  *
- * @class Chatterbox.Chatbook
+ * This object is mainly used for constructing LogMessage objects with the
+ * right data. Seemed to make more sense than having multiple definitions of
+ * LogMessage and/or if...else/switch...case blocks.
+ * 
+ * @class Chatterbox.Protocol
  * @constructor
- * @param ui {Object} Chatterbox.UI object.
  */
-Chatterbox.Chatbook = function( ui ) {
-    
-    this.manager = ui;
-    this.view = this.manager.view.find('div.chatbook');
-    this.chan = {};
-    this.trail = [];
-    this.current = null;
-    
-    this.manager.on( 'tab.close.clicked', function( event, ui ) {
-        ui.chatbook.remove_channel(event.ns);
-    });
-    
-};
+Chatterbox.Protocol = function(  ) {
 
-/**
- * Return the height of the chatbook.
- *
- * @method height
- */
-Chatterbox.Chatbook.prototype.height = function() {
-    return this.view.height();
-};
-
-/**
- * Return the width of the chatbook.
- *
- * @method height
- */
-Chatterbox.Chatbook.prototype.width = function() {
-    return this.view.width();
-};
-
-/**
- * Resize the chatbook view pane.
- * 
- * @method resize
- * @param [height=600] {Integer} The height to set the view pane to.
- */
-Chatterbox.Chatbook.prototype.resize = function( height ) {
-    height = height || 600;
-    var width = this.view.innerWidth();
-    
-    for( var select in this.chan ) {
-        if( !this.chan.hasOwnProperty( select ) )
-            continue;
-        
-        var chan = this.chan[select];
-        chan.resize( width, height );
-    }
-};
-
-/**
- * Called every now and then.
- * Does stuff like clear channels of excess log messages.
- * Maybe this is something that the UI lib should handle.
- * 
- * @method loop
- */
-Chatterbox.Chatbook.prototype.loop = function(  ) {
-
-    for( select in this.chan ) {
-        this.chan[select].loop();
-    }
-
-};
-
-/**
- * Get or set the channel object associated with the given namespace.
- * 
- * @method channel
- * @param namespace {String} The namespace to set or get.
- * @param [chan] {Object} A wsc channel object representing the channel specified.
- * @return {Object} The channel object representing the channel defined by `namespace`
- */
-Chatterbox.Chatbook.prototype.channel = function( namespace, chan ) {
-    namespace = this.manager.format_ns(namespace).toLowerCase();
-    
-    if( !this.chan[namespace] && chan )
-        this.chan[namespace] = chan;
-    
-    return this.chan[namespace];
-};
-
-/**
- * Determine how many channels the ui has open. Hidden channels are
- * not included in this, and we don't include the first channel because
- * there should always be at least one non-hidden channel present in the
- * ui.
- * 
- * @method channels
- * @return [Integer] Number of channels open in the ui.
- */
-Chatterbox.Chatbook.prototype.channels = function( ) {
-    chans = -1;
-    for(ns in this.chan) {
-        if( this.chan[ns].hidden )
-            continue;
-        chans++;
-    }
-    return chans;
-};
-
-/**
- * Create a channel in the UI.
- * 
- * @method create_channel
- * @param ns {String} Namespace of the channel to create.
- * @param hidden {Boolean} Should the tab be hidden?
- * @param monitor {Boolean} Is this channel the monitor?
- * @return {Object} WscUIChannel object.
- */
-Chatterbox.Chatbook.prototype.create_channel = function( ns, hidden, monitor ) {
-    var chan = this.channel(ns, this.channel_object(ns, hidden, monitor));
-    chan.build();
-    // Update the paper trail.
-    if( this.trail.indexOf(chan.namespace) == -1 ) {
-        this.trail.push(chan.namespace);
-    }
-    
-    if( !chan.visible )
-        this.toggle_channel(ns);
-    
-    this.manager.resize();
-    return chan;
-};
-
-/**
- * Create a new channel panel object.
- * Override this method to use a different type of channel object.
- * 
- * @method channel_object
- * @param ns {String} Namespace of the channel.
- * @param hidden {Boolean} Should the tab be hidden?
- * @return {Object} An object representing a channel UI.
- */
-Chatterbox.Chatbook.prototype.channel_object = function( ns, hidden ) {
-    return new Chatterbox.Channel( this.manager, ns, hidden );
-};
-
-/**
- * Select which channel is currently being viewed.
- * 
- * @method toggle_channel
- * @param ns {String} Namespace of the channel to view.
- */
-Chatterbox.Chatbook.prototype.toggle_channel = function( ns ) {
-    var chan = this.channel(ns);
-    var prev = chan;
-    
-    if( !chan )
-        return;
-    
-    if( chan.hidden ) {
-        if( this.current && this.current == chan )
-            return;
-        if( !this.manager.settings.developer ) {
-            chan.hide();
-            return;
-        }
-    }
-    
-    if(this.current) {
-        if(this.current == chan)
-            return;
-        // Hide previous channel, if any.
-        this.current.hide();
-        prev = this.current;
-    } else {
-        if( this.manager.monitoro !== null )
-            this.manager.monitoro.hide();
-    }
-    
-    // Show clicked channel.
-    chan.show();
-    this.manager.control.focus();
-    this.current = chan;
-    this.manager.resize();
-    this.manager.control.cache_input( prev, chan );
-    
-    this.manager.trigger( 'channel.selected', {
-        'ns': chan.raw,
-        'chan': chan,
-        'prev': prev
-    } );
-    
-    this.manager.client.select_ns( chan.raw );
-};
-
-/**
- * Remove a channel from the UI.
- * 
- * @method remove_channel
- * @param ns {String} Name of the channel to remove.
- */
-Chatterbox.Chatbook.prototype.remove_channel = function( ns ) {
-    var chan = this.channel(ns);
-    
-    if( !chan )
-        return;
-    
-    if( this.channels() == 0 && !chan.hidden ) 
-        return;
-    
-    chan.remove();
-    delete this.chan[chan.raw.toLowerCase()];
-    
-    if( this.current == chan )
-        this.channel_left();
-    
-    var rpos = this.trail.indexOf(chan.namespace);
-    this.trail.splice(rpos, 1);
-};
-
-/**
- * Switch to the channel left of the current channel.
- * 
- * @method channel_left
- */
-Chatterbox.Chatbook.prototype.channel_left = function(  ) {
-
-    var ns = this.current.namespace;
-    var index = this.trail.indexOf(ns);
-    
-    if( index < 0 )
-        return;
-    
-    var nc = null;
-    while( true ) {
-        try {
-            nc = this.channel(this.trail[--index]);
-        } catch( err ) {
-            index = this.trail.length - 1;
-            nc = this.channel(this.trail[index]);
-        }
-        
-        if( !nc.hidden )
-            break;
-        
-        if( this.manager.settings.developer )
-            break;
-    }
-    
-    this.toggle_channel(nc.namespace);
-
-};
-
-/**
- * Switch to the channel right of the current channel.
- * 
- * @method channel_right
- */
-Chatterbox.Chatbook.prototype.channel_right = function(  ) {
-
-    var ns = this.current.namespace;
-    var index = this.trail.indexOf(ns);
-    
-    if( index == -1 )
-        return;
-    
-    var nc = null;
-    while( true ) {
-        try {
-            nc = this.channel(this.trail[++index]);
-        } catch( err ) {
-            index = 0;
-            nc = this.channel(this.trail[0]);
-        }
-        if( !nc.hidden )
-            break;
-        
-        if( this.manager.settings.developer )
-            break;
-    }
-    
-    this.toggle_channel(nc.namespace);
-
-};
-
-/**
- * Iterate through the different channels.
- * 
- * @method each
- * @param method {Function} Function to call for each channel.
- */
-Chatterbox.Chatbook.prototype.each = function( method ) {
-    
-    var chan = null;
-    
-    for( var ns in this.chan ) {
-        if( !this.chan.hasOwnProperty(ns) )
-            continue;
-        
-        chan = this.chan[ns];
-        
-        if( method( chan.namespace, chan ) === false )
-            break;
-    }
-    
-};
-
-/**
- * Display a server message across all open channels.
- * 
- * @method server_message
- * @param msg {String} Message to display.
- * @param [info] {String} Additional data to display.
- */
-Chatterbox.Chatbook.prototype.server_message = function( msg, info ) {
-
-    for( ns in this.chan ) {
-        this.chan[ns].server_message(msg, info);
-    }
-
-};
-
-/**
- * Display a log item across all open channels.
- * 
- * @method log_item
- * @param msg {String} Message to display.
- */
-Chatterbox.Chatbook.prototype.log_item = function( msg ) {
-
-    for( ns in this.chan ) {
-        this.chan[ns].log_item(msg);
-    }
-
-};
-
-/**
- * Display a log item across all open channels.
- * 
- * @method log_item
- * @param msg {String} Message to display.
- */
-Chatterbox.Chatbook.prototype.log = function( msg ) {
-
-    for( ns in this.chan ) {
-        this.chan[ns].log(msg);
-    }
-
-};
-
-/**
- * Handle a log message.
- * @method log_message
- * @param message {Object} Log message object
- * @param event {Object} Event data
- */
-Chatterbox.Chatbook.prototype.log_message = function( message, event ) {
-
-    try {
-        if( !message.global ) {
-            if( !message.monitor ) {
-                this.channel( event.ns ).log_item( event );
-            } else {
-                this.manager.monitoro.log_item( event );
-            }
-        } else {
-            this.log_item( event );
-        }
-    } catch( err ) {
-        try {
-            this.ui.monitoro.server_message( 'Failed to log for', event.sns, event.html );
-        } catch( err ) {
-            console.log( '>> Failed to log message for', event.sns, '::' );
-            console.log( '>>', event.html );
-            console.log( err );
-        }
-    }
-
-};
-
-/**
- * Rewrite timestamps for all open channels.
- * 
- * @method retime
- */
-Chatterbox.Chatbook.prototype.retime = function(  ) {
-
-    for( ns in this.chan ) {
-        this.chan[ns].retime();
-    }
-
-};
-
-/**
- * Toggle the developer mode of each channel.
- *
- * @method developer
- */
-Chatterbox.Chatbook.prototype.developer = function(  ) {
-    this.each( function( ns, chan ) {
-        chan.developer();
-    } );
-};
-
-/**
- * Handle a packet event.
- * @method handle
- * @param event {Object} Event data
- * @param client {Object} Reference to the client
- */
-Chatterbox.Chatbook.prototype.handle = function( event, client ) {
-
-    var ui = this.manager;
-    var chan = this.channel( event.ns );
-    
-    if( !chan )
-        return;
-    
-    var meth = 'pkt_' + event.name;
-    
-    try {
-        chan[meth]( event, client );
-    } catch( err ) {}
-
-};
-
-
-/**
- * This object provides an interface for the chat input panel.
- * 
- * @class Chatterbox.Control
- * @constructor
- * @param ui {Object} Chatterbox.UI object.
- */
-Chatterbox.Control = function( ui ) {
-
-    this.manager = ui;
-    this.manager.view.append( Chatterbox.template.control );
-    this.view = this.manager.view.find('div.chatcontrol');
-    this.ml = false;
-    
-    this.history = {};
-    this.tab = {
-        hit: false,
-        cache: '',
-        matched: [],
-        index: -1,
-        type: 0,
-        prefix: ['', '/', ''],
-    };
-    
     /**
-     * UI elements
+     * Messages object.
+     * 
+     * This object determines how each protocol packet should be rendered based
+     * data from an `event object`. For each packet, there is an entry, where the key is the
+     * {{#crossLink "Chatterbox.Protocol/event:method"}}event name{{/crossLink}} of the packet.
+     * 
+     * Each entry is an array. The array consists of options for rendering and
+     * logging. The array is of the structure `[ renderers, monitor, global ]`.
+     * All items are optional, but positional. There are default options that
+     * can be used.
+     * 
+     * When `renderers` is present it must be an array. This array contains
+     * renderers for different kinds of formats. Renderers can be either a
+     * formatted string or a callback that returns a string. There must be at
+     * least one renderer, for text output. Otherwise the array should contain
+     * a renderer for text ouput, a renderer for HTML output, and a renderer
+     * for ANSI output. If a renderer is missing then everything falls back to
+     * text renderer.
+     * 
+     * The `monitor` option determines whether or not to display the log
+     * message in the monitor channel. The default for this is `false`.
+     * 
+     * The `global` option determines whether or not to display the log message
+     * in every open channel. The default for this is also `false`.
+     * 
+     * An example for an entry in this object:
+     *      
+     *      { 'join': [
+     *          [
+     *              '** Join {ns}: "{e}" *',
+     *              '<span class="servermsg">** Join {ns}: "{e}" *</span>'
+     *          ],
+     *          true
+     *      ] }
+     * 
+     * This shows how the join packet will render in the monitor channel. If a
+     * channel is set to display in the monitor channel, then it should not
+     * be displayed in the event channel.
+     *
+     * At the moment, we only have to render using HTML, so the `renderers`
+     * array in the entries are only HTML renderers at the moment. No array,
+     * just formatting strings.
+     * 
+     * To display absolutely nothing for an event, the whole entry can simply
+     * be `null`.
+     * @property messages
+     * @type Object
      */
-    this.el = {
-        form: this.view.find('form.msg'),                       // Input form
-        i: {                                                    // Input field
-            s: this.view.find('form.msg input.msg'),            //      Single line input
-            m: this.view.find('form.msg textarea.msg'),         //      Multi line input
-            c: null,                                            //      Current input element
-            t: this.view.find('ul.buttons a[href~=#multiline].button')   //      Toggle multiline button
+    this.messages = {
+        'chatserver': {
+            keys: [ 'version' ],
+            template: '<span class="servermsg">** Connected to llama {version} *</span>',
+            global: true
         },
-        brow: {
-            m: this.view.find('div.brow'),                               // Control brow
-            b: this.view.find('div.brow ul.buttons'),
-            s: this.view.find('div.brow ul.states')
+        'dAmnServer': {
+            keys: [ 'version' ],
+            template: '<span class="servermsg">** Connected to dAmnServer {version} *</span>',
+            global: true
+        },
+        'login': {
+            keys: [ 'username', 'e', 'data' ],
+            template: '<span class="servermsg">** Login as {username}: "{e}" *</span>',
+            global: true
+        },
+        'join': {
+            keys: [ 'ns', 'e' ],
+            template: '<span class="servermsg">** Join {ns}: "{e}" *</span>',
+            monitor: true
+        },
+        'part': {
+            keys: [ 'ns', 'e', 'r' ],
+            template: '<span class="servermsg">** Part {ns}: "{e}" * <em>{r}</em></span>',
+            monitor: true
+        },
+        'property': {
+            keys: [ 'ns', 'p', 'by', 'ts', 'value' ],
+            template: '<span class="servermsg">** Got {p} for {ns} *</span>',
+            monitor: true
+        },
+        'recv_msg': {
+            keys: [ 'user', 'message' ],
+            template: '<span class="cmsg user u-{user}"><strong>&lt;{user}&gt;</strong></span><span class="cmsg u-{user}">{message}</span>'
+        },
+        /*
+        'recv_npmsg': {
+            keys: [ 'user', 'message' ],
+            template: '<span class="cmsg user u-{user}"><strong>&lt;{user}&gt;</strong></span><span class="cmsg u-{user}">{message}</span>'
+        },
+        */
+        'recv_action': {
+            keys: [ 's', 'user', 'message' ],
+            template: '<span class="caction user u-{user}"><em>* {user}</em></span><span class="caction u-{user}">{message}</span>'
+        },
+        'recv_join': {
+            keys: [ 'user', 's', 'info' ],
+            template: '<span class="cevent bg">** {user} has joined *</span>',
+        },
+        'recv_part': {
+            keys: [ 'user', 'r' ],
+            template: '<span class="cevent bg">** {user} has left * <em>{r}</em></span>'
+        },
+        'recv_privchg': {
+            keys: [ 'user', 's', 'by', 'pc' ],
+            template: '<span class="cevent">** {user} has been made a member of {pc} by {by} *</span>'
+        },
+        'recv_kicked': {
+            keys: [ 'user', 's', 'by', 'r' ],
+            template: '<span class="cevent">** {user} has been kicked by {by} * <em>{r}</em></span>'
+        },
+        'recv_admin_create': {
+            keys: [ 'p', 'user', 'pc', 'privs' ],
+            template: '<span class="cevent admin">** Privilege class {pc} has been created by {user} * <em>{privs}</em></span>'
+        },
+        'recv_admin_update': {
+            keys: [ 'p', 'user', 'pc', 'privs' ],
+            template: '<span class="cevent admin">** Privilege class {pc} has been updated by {user} * <em>{privs}</em></span>'
+        },
+        'recv_admin_rename': {
+            keys: [ 'p', 'user', 'prev', 'pc' ],
+            template: '<span class="cevent admin">** Privilege class {prev} has been renamed to {pc} by {user} *</span>'
+        },
+        'recv_admin_move': {
+            keys: [ 'p', 'user', 'prev', 'pc', 'affected' ],
+            template: '<span class="cevent admin">** All members of {prev} have been moved to {pc} by {user} * <em>{affected} affected user(s)</em></span>'
+        },
+        'recv_admin_remove': {
+            keys: [ 'p', 'user', 'pc', 'affected' ],
+            template: '<span class="cevent admin">** Privilege class {pc} has been removed by {user} * <em>{affected} affected user(s)</em></span>'
+        },
+        'recv_admin_show': null,
+        'recv_admin_showverbose': null,
+        'recv_admin_privclass': {
+            keys: [ 'p', 'e', 'command' ],
+            template: '<span class="cevent admin">** Admin command "{command}" failed * <em>{e}</em></span>'
+        },
+        'kicked': {
+            keys: [ 'ns', 'user', 'r' ],
+            template: '<span class="servermsg">** You have been kicked by {user} * <em>{r}</em></span>'
+        },
+        'ping': null, //['<span class="servermsg">** Ping...</span>', true],
+        'disconnect': {
+           keys: [ 'e' ],
+           template: '<span class="servermsg">** You have been disconnected * <em>{e}</em></span>',
+           global: true
+        },
+        // Stuff here is errors, yes?
+        'send': {
+            keys: [ 'ns', 'e' ],
+            template: '<span class="servermsg">** Send error: <em>{e}</em></span>'
+        },
+        'kick': {
+            keys: [ 'ns', 'user', 'e' ],
+            template: '<span class="servermsg">** Could not kick {user} * <em>{e}</em></span>'
+        },
+        'get': {
+            keys: [ 'ns', 'p', 'e' ],
+            template: '<span class="servermsg">** Could not get {p} info for {ns} * <em>{e}</em></span>'
+        },
+        'set': {
+            keys: [ 'ns', 'p', 'e' ],
+            template: '<span class="servermsg">** Could not set {p} * <em>{e}</em></span>'
+        },
+        'kill': {
+            keys: [ 'ns', 'e' ],
+            template: '<span class="servermsg">** Kill error * <em>{e}</em></span>'
+        },
+        'log': {
+            keys: [ 'ns', 'msg', 'info' ],
+            template: '<span class="servermsg">** {msg} * <em>{info}</em></span>'
+        },
+        'unknown': {
+            keys: [ 'ns', 'packet' ],
+            template: '<span class="servermsg">** Received unknown packet in {ns} * <em>{packet}</em></span>',
+            monitor: true
         }
     };
-    // Default input mode is single line.
-    this.el.i.c = this.el.i.s;
-    
-    var ctrl = this;
-    this.el.i.t.click(function( event ) {
-        ctrl.multiline( !ctrl.multiline() );
-        return false;
-    });
-    
-    // Input handling.
-    this.el.i.s.keydown( function( event ) { return ctrl.keypress( event ); } );
-    this.el.i.m.keydown( function( event ) { return ctrl.keypress( event ); } );
-    this.el.form.submit( function( event ) { return ctrl.submit( event ); } );
-    
-    // FORMATTING BUTTONS
-    
-    this.add_button({
-        'label': '<b>b</b>',
-        'icon': false,
-        'href': '#bold',
-        'title': 'Bold text',
-        'handler': function(  ) {
-            ctrl.surroundtext( ctrl.el.i.c[0], '<b>', '</b>');
-        }
-    });
-    
-    this.add_button({
-        'label': '<i>i</i>',
-        'icon': false,
-        'href': '#italic',
-        'title': 'Italic text',
-        'handler': function(  ) {
-            ctrl.surroundtext( ctrl.el.i.c[0], '<i>', '</i>');
-        }
-    });
-    
-    this.add_button({
-        'label': '<u>u</u>',
-        'icon': false,
-        'href': '#underline',
-        'title': 'Underline text',
-        'handler': function(  ) {
-            ctrl.surroundtext( ctrl.el.i.c[0], '<u>', '</u>');
-        }
-    });
-    
-    this.add_button({
-        'label': '<sup>sup</sup>',
-        'icon': false,
-        'href': '#sup',
-        'title': 'Superscript',
-        'handler': function(  ) {
-            ctrl.surroundtext( ctrl.el.i.c[0], '<sup>', '</sup>');
-        }
-    });
-    
-    this.add_button({
-        'label': '<sub>sub</sub>',
-        'icon': false,
-        'href': '#sub',
-        'title': 'Subscript',
-        'handler': function(  ) {
-            ctrl.surroundtext( ctrl.el.i.c[0], '<sub>', '</sub>');
-        }
-    });
 
 };
 
 /**
- * Lifted from superdAmn.
- *
- * SURROUNDTEXT: Adds text around selected text (from deviantPlus)
- * @method surroundtext
- * @param tf
- * @param left
- * @param right
- */
-Chatterbox.Control.prototype.surroundtext = function(tf, left, right){
-    // Thanks, Zikes
-    var tmpScroll     = tf.scrollTop;
-    var t             = tf.value, s = tf.selectionStart, e = tf.selectionEnd;
-    var selectedText  = tf.value.substring(s,e);
-    tf.value          = t.substring(0,s) + left + selectedText + right + t.substring(e);
-    tf.selectionStart = s + left.length;
-    tf.selectionEnd   = s + left.length + selectedText.length;
-    tf.scrollTop      = tmpScroll;
-    tf.focus();
-};
-
-
-/**
- * Steal the lime light. Brings the cursor to the input panel.
+ * Extend the protocol message renderers.
  * 
- * @method focus
+ * @method extend_messages
+ * @param messages {Object} An object containing packet rendering methods.
  */
-Chatterbox.Control.prototype.focus = function( ) {
-    this.el.i.c.focus();
-};
+Chatterbox.Protocol.prototype.extend_messages = function( messages ) {
 
-/**
- * Resize the control panel.
- *
- * @method resize
- */
-Chatterbox.Control.prototype.resize = function( ) {
-    w = this.manager.view.width();
-    this.view.css({
-        width: '100%'});
-    // Form dimensionals.
-    this.el.form.css({'width': this.manager.view.width() - 20});
-    this.el.i.s.css({'width': this.manager.view.width() - 100});
-    this.el.i.m.css({'width': this.manager.view.width() - 90});
-};
-
-
-/**
- * Get the height of the input panel.
- * 
- * @method height
- */
-Chatterbox.Control.prototype.height = function( ) {
-    var h = this.view.outerHeight();
-    return h;
-};
-
-/**
- * Set or get multiline input mode.
- * 
- * @method multiline
- * @param [on] {Boolean} Use multiline input?
- * @return {Boolean} Current mode.
- */
-Chatterbox.Control.prototype.multiline = function( on ) {
-
-    if( on == undefined || this.ml == on )
-        return this.ml;
-    
-    this.ml = on;
-    var off = ( this.ml ? 's' : 'm' );
-    on = ( this.ml ? 'm' : 's' );
-    
-    this.el.i[off].css('display', 'none');
-    this.el.i[on].css('display', 'inline-block');
-    this.el.i.c = this.el.i[on];
-    this.manager.resize();
-    return this.ml;
-
-};
-
-/**
- * Add a button to the control panel button row.
- * 
- * @method add_button
- * @param options {Object} Configuration options for the button.
- * @return {Object} DOM element or something.
- */
-Chatterbox.Control.prototype.add_button = function( options ) {
-
-    options = Object.extend( {
-        'label': 'New',
-        'icon': false,
-        'href': '#button',
-        'title': 'Button.',
-        'handler': function(  ) {}
-    }, ( options || {} ) );
-    
-    if( options.icon !== false ) {
-        options.icon = ' iconic ' + options.icon;
-    } else {
-        options.icon = ' text';
-    }
-    
-    this.el.brow.b.append(Chatterbox.render('brow_button', options));
-    var button = this.el.brow.b.find('a[href='+options.href+'].button');
-    
-    button.click( function( event ) {
-        options['handler']();
-        return false;
-    } );
-    
-    return button;
-
-};
-
-/**
- * Add status text to the control panel button row.
- * 
- * @method add_state
- * @param options {Object} Status configuration options
- */
-Chatterbox.Control.prototype.add_state = function( options ) {
-
-    options = Object.extend( {
-        'ref': 'state',
-        'label': 'some state'
-    }, ( options || {} ) );
-    
-    var state = this.el.brow.s.find( 'li#' + options.ref );
-    
-    if( state.length == 0 ) {
-        this.el.brow.s.append(Chatterbox.render('brow_state', options));
-        return this.el.brow.s.find('li#' + options.ref);
-    }
-    
-    state.html( options.label );
-    return state;
-
-};
-
-/**
- * Remove a status item from the control panel button row.
- * 
- * @method rem_state
- * @param ref {String} Reference ID for the button
- */
-Chatterbox.Control.prototype.rem_state = function( ref ) {
-
-    return this.el.brow.s.find( 'li#' + ref ).remove();
-
-};
-
-/**
- * Get the last word from the input box.
- * 
- * @method chomp
- * @return {String} The last word in the input box.
- */
-Chatterbox.Control.prototype.chomp = function( ) {
-    var d = this.el.i.c.val();
-    var i = d.lastIndexOf(' ');
-    
-    if( i == -1 ) {
-        this.el.i.c.val('');
-        return d;
-    }
-    
-    var chunk = d.slice(i + 1);
-    this.el.i.c.val( d.slice(0, i) );
-    
-    if( chunk.length == 0 )
-        return this.chomp();
-    
-    return chunk;
-};
-
-/**
- * Append text to the end of the input box.
- * 
- * @method unchomp
- * @param data {String} Text to append.
- */
-Chatterbox.Control.prototype.unchomp = function( data ) {
-    var d = this.el.i.c.val();
-    if( !d )
-        this.el.i.c.val(data);
-    else
-        this.el.i.c.val(d + ' ' + data);
-};
-
-/**
- * Get the text in the input box.
- * 
- * @method get_text
- * @return {String} The text currently in the input box.
- */
-Chatterbox.Control.prototype.get_text = function( text ) {
-
-    if( text == undefined )
-        return this.el.i.c.val();
-    this.el.i.c.val( text || '' );
-    return this.el.i.c.val();
-
-};
-
-/**
- * Set the text in the input box.
- * 
- * @method set_text
- * @param text {String} The text to put in the input box.
- */
-Chatterbox.Control.prototype.set_text = function( text ) {
-
-    this.el.i.c.val( text || '' );
-
-};
-
-/**
- * Save current input in a cache.
- * 
- * @method cache_input
- * @param previous {Object} Channel to cache input for.
- * @param chan {Object} Newly selected channel
- */
-Chatterbox.Control.prototype.cache_input = function( previous, chan ) {
-
-    var h = this.get_history( previous.namespace );
-    
-    if( h.index > -1 )
-        return;
-    
-    h.tmp = this.get_text();
-    this.set_text(this.get_history( chan.namespace ).tmp);
-
-};
-
-/**
- * Get a channel's input history object.
- * 
- * If no history object exists for the given channel, a new object is created
- * and stored.
- * 
- * @method get_history
- * @param [namespace] {String} Channel to get the history of. If not given, the
- *   channel currently being viewed is used.
- * @return history {Object} Channel's input history data.
- */
-Chatterbox.Control.prototype.get_history = function( namespace ) {
-
-    if( !namespace ) {
-        if( !this.manager.chatbook.current ) {
-             namespace = '~monitor';
-        }
-    }
-    
-    namespace = namespace || this.manager.chatbook.current.namespace;
-    
-    if( !this.history[namespace] )
-        this.history[namespace] = { index: -1, list: [], tmp: '' };
-    
-    return this.history[namespace];
-
-};
-
-/**
- * Append an item to the current channel's input history.
- * 
- * @method append_history
- * @param data {String} Input string to store.
- */
-Chatterbox.Control.prototype.append_history = function( data ) {
-
-    if( !data )
-        return;
-    
-    var h = this.get_history();
-    h.list.unshift(data);
-    h.index = -1;
-    
-    if( h.list.length > 100 )
-        h.list.pop();
-
-};
-
-/**
- * Scroll through the current channel's input history.
- * 
- * @method scroll_history
- * @param up {Boolean} Scroll up?
- */
-Chatterbox.Control.prototype.scroll_history = function( up ) {
-
-    var history = this.get_history();
-    var data = this.get_text();
-    
-    if( history.index == -1 )
-        if( data )
-            history.tmp = data;
-    else
-        history.list[history.index] = data;
-    
-    if( up ) {
-        if( history.list.length > 0 && history.index < (history.list.length - 1) )
-            history.index++;
-    } else {
-        if( history.index > -1)
-            history.index--;
-    }
-    
-    this.set_text(history.list[history.index] || history.tmp);
-
-};
-
-/**
- * Handle the tab character being pressed.
- * 
- * @method tab_item
- * @param event {Object} Event data.
- */
-Chatterbox.Control.prototype.tab_item = function( event ) {
-
-    if( !this.tab.hit )
-        this.start_tab(event);
-    
-    this.chomp();
-    this.tab.index++;
-    
-    if( this.tab.index >= this.tab.matched.length )
-        this.tab.index = -1;
-    
-    if( this.tab.index == -1 ) {
-        this.unchomp(this.tab.prefix[this.tab.type] + this.tab.cache);
-        return;
-    }
-    
-    var suf = this.get_text() == '' ? ( this.tab.type == 0 ? ': ' : ' ' ) : '';
-    this.unchomp(this.tab.prefix[this.tab.type] + this.tab.matched[this.tab.index] + suf);
-
-};
-
-/**
- * Start tab complete capabilities by compiling a list of items that match the
- * current user input.
- * 
- * TODO: make this actually work in its new found home
- * 
- * @method start_tab
- * @param event {Object} Event data.
- */
-Chatterbox.Control.prototype.start_tab = function( event ) {
-
-    this.tab.hit = true;
-    this.tab.index = -1;
-    this.tab.matched = [];
-    this.tab.type = 0;
-    
-    // We only tab the last word in the input. Slice!
-    var needle = this.chomp();
-    this.unchomp(needle);
-    
-    // Check if we's dealing with commands here
-    if( needle[0] == "/" || needle[0] == "#" || needle[0] == '@' ) {
-        this.tab.type = needle[0] == '/' ? 1 : 2;
-        if( needle[0] == '/' )
-            needle = needle.slice(1);
-    } else {
-        this.tab.type = 0;
-    }
-    
-    this.tab.cache = needle;
-    needle = needle.toLowerCase();
-    
-    // Nows we have to find our matches. Fun.
-    // Lets start with matching users.
-    this.tab.matched = [];
-    if( this.tab.type == 0 ) {
-        var c = this.manager.client.channel( this.manager.chatbook.current.namespace );
-        for( var user in c.info['members'] ) {
-            if( user.toLowerCase().indexOf(needle) == 0 )
-                this.tab.matched.push(user);
-        }
-    } else if( this.tab.type == 1 ) {
-        // Matching with commands.
-        var cmd = '';
-        for( var i in this.manager.client.cmds ) {
-            cmd = this.manager.client.cmds[i];
-            if( cmd.indexOf(needle) == 0 )
-                this.tab.matched.push(cmd);
-        }
-    } else if( this.tab.type == 2 ) {
-        // Matching with channels.
-        var ctrl = this;
-        this.manager.client.each_channel( function( ns, chan ) {
-            if( chan.namespace.toLowerCase().indexOf(needle) == 0 )
-                ctrl.tab.matched.push(chan.namespace);
-        } );
+    for( var key in messages ) {
+        if( !this.messages.hasOwnProperty(key) )
+            continue;
+        this.messages[key] = messages[key];
     }
 
 };
 
 /**
- * Clear the tabbing cache.
- * 
- * @method end_tab
- * @param event {Object} Event data.
+ * Produce a log message for an event.
+ * @method log
+ * @param event {Object} Event data to produce a log message with
+ * @return {Object} A log message object on success. Null if failed.
  */
-Chatterbox.Control.prototype.end_tab = function( event ) {
+Chatterbox.Protocol.prototype.log = function( event ) {
 
-    this.tab.hit = false;
-    this.tab.matched = [];
-    this.tab.cache = '';
-    this.tab.index = -1;
+    var msgm = this.messages[event.name];
+    //console.log(this.map[event.name]);
+    return new Chatterbox.Protocol.LogMessage( event, msgm );
 
 };
+
 
 /**
- * Handle the send button being pressed.
- * 
- * @method submit
- * @param event {Object} Event data.
- */
-Chatterbox.Control.prototype.submit = function( event ) {
-
-    var msg = this.get_text();
-    this.append_history(msg);
-    this.set_text('');
-    this.handle(event, msg);
-    return false;
-
-};
-/**
- * Processes a key being typed in the input area.
- * 
- * @method keypress
- * @param event {Object} Event data.
- */
-Chatterbox.Control.prototype.keypress = function( event ) {
-
-    var key = event.which || event.keyCode;
-    var ut = this.tab.hit;
-    var bubble = false;
-    
-    switch( key ) {
-        case 13: // Enter
-            if( !this.multiline() ) {
-                this.submit(event);
-            } else {
-                if( event.shiftKey ) {
-                    this.submit(event);
-                } else {
-                    bubble = true;
-                }
-            }
-            break;
-        case 38: // Up
-            if( !this.multiline() ) {
-                this.scroll_history(true);
-                break;
-            }
-            bubble = true;
-            break;
-        case 40: // Down
-            if( !this.multiline() ) {
-                this.scroll_history(false);
-                break;
-            }
-            bubble = true;
-            break;
-        case 9: // Tab
-            if( event.shiftKey ) {
-                this.manager.channel_right();
-            } else {
-                this.tab_item( event );
-                ut = false;
-            }
-            break;
-        case 219: // [
-            if( event.ctrlKey ) {
-                this.manager.channel_left();
-            } else {
-                bubble = true;
-            }
-            break;
-        case 221: // ] (using instead of +)
-            if( event.ctrlKey ) {
-                this.manager.channel_right();
-            } else {
-                bubble = true;
-            }
-            break;
-        default:
-            bubble = true;
-            break;
-    }
-    
-    if( ut )
-        this.end_tab( event );
-    
-    return bubble;
-
-};
-
-/**
- * Handle some user input.
- * 
- * @method handle
- * @param event {Object} Event data.
- * @param data {String} Input message given by the user.
- */
-Chatterbox.Control.prototype.handle = function( event, data ) {
-
-    if( data == '' )
-        return;
-    
-    if( !this.manager.chatbook.current )
-        return;
-    
-    var autocmd = false;
-    
-    if( data[0] != '/' ) {
-        autocmd = true;
-    }
-    
-    data = (event.shiftKey ? '/npmsg ' : ( data[0] == '/' ? '' : '/say ' )) + data;
-    data = data.slice(1);
-    var bits = data.split(' ');
-    var cmdn = bits.shift().toLowerCase();
-    var ens = this.manager.chatbook.current.namespace;
-    var etarget = ens;
-    
-    if( !autocmd && bits[0] ) {
-        var hash = bits[0][0];
-        if( (hash == '#' || hash == '@') && bits[0].length > 1 ) {
-            etarget = this.manager.format_ns(bits.shift());
-        }
-    }
-    
-    var arg = bits.join(' ');
-    
-    var fired = this.manager.client.trigger('cmd.' + cmdn, {
-        name: 'cmd',
-        cmd: cmdn,
-        args: arg,
-        target: etarget,
-        ns: ens
-    });
-    
-    if( fired == 0 ) {
-        this.manager.pager.notice({
-            'ref': 'cmd-fail',
-            'heading': 'Command failed',
-            'content': '"' + cmdn + '" is not a command.'
-        }, false, 5000 );
-    }
-
-};
-
-
-
-Chatterbox.Extension = function( ui, client ) {
-
-    var storage = client.storage.folder('ui');
-    var ext = {
-        page: {}
-    };
-    
-    ui.storage = storage;
-    
-    var init = function(  ) {
-    
-        ui.on('settings.open', ext.page.settings);
-        ui.on('settings.open.ran', ext.page.about);
-        ui.on('settings.save.ui', ext.save);
-        ui.on('settings.save', function(  ) { client.config_save(); } );
-        
-        
-        
-        ext.load();
-        
-    };
-    
-    ext.save = function( e, ui ) {
-        storage.set('theme', ui.settings.theme);
-        storage.set('clock', ui.settings.clock.toString());
-        storage.set('tabclose', ui.settings.tabclose.toString());
-    };
-    
-    ext.load = function(  ) {
-    
-        ui.settings.theme = storage.get('theme', ui.settings.theme);
-        ui.settings.clock = (storage.get('clock', ui.settings.clock.toString()) == 'true');
-        ui.settings.tabclose = (storage.get('tabclose', ui.settings.tabclose.toString()) == 'true');
-    
-    };
-    
-    ext.page.settings = function( e, ui ) {
-        
-        var page = e.settings.page('Main');
-        var orig = {};
-        orig.username = client.settings.username;
-        orig.pk = client.settings.pk;
-        orig.devel = client.settings.developer;
-        orig.theme = replaceAll(ui.settings.theme, 'wsct_', '');
-        orig.clock = ui.clock();
-        orig.tc = ui.nav.closer();
-    
-        var themes = [];
-        for( i in ui.settings.themes ) {
-            name = replaceAll(ui.settings.themes[i], 'wsct_', '');
-            themes.push({ 'value': name, 'title': name, 'selected': orig.theme == name })
-        }
-        
-        page.item('Text', {
-            'ref': 'intro',
-            'title': 'Main',
-            'text': 'Use this window to view and change your settings.\n\nCheck\
-                    the different pages to see what settings can be changed.',
-        });
-        
-        page.item('Form', {
-            'ref': 'login',
-            'title': 'Login',
-            'text': 'Here you can change the username and token used to\
-                    log into the chat server.',
-            'fields': [
-                ['Textfield', {
-                    'ref': 'username',
-                    'label': 'Username',
-                    'default': orig.username
-                }],
-                ['Textfield', {
-                    'ref': 'token',
-                    'label': 'Token',
-                    'default': orig.pk
-                }]
-            ],
-            'event': {
-                'save': function( event ) {
-                    client.settings.username = event.data.username;
-                    client.settings.pk = event.data.token;
-                }
-            }
-        });
-        
-        page.item('Form', {
-            'ref': 'ui',
-            'title': 'UI',
-            'hint': '<b>Timestamp</b><br/>Choose between a 24 hour clock and\
-                    a 12 hour clock.\n\n<b>Theme</b><br/>Change the look of the\
-                    client.\n\n<b>Close Buttons</b><br/>Turn tab close buttons on/off.',
-            'fields': [
-                ['Dropdown', {
-                    'ref': 'theme',
-                    'label': 'Theme',
-                    'items': themes
-                }],
-                ['Dropdown', {
-                    'ref': 'clock',
-                    'label': 'Timestamp Format',
-                    'items': [
-                        { 'value': '24', 'title': '24 hour', 'selected': orig.clock },
-                        { 'value': '12', 'title': '12 hour', 'selected': !orig.clock }
-                    ]
-                }],
-                ['Checkbox', {
-                    'ref': 'tabclose',
-                    'label': 'Close Buttons',
-                    'items': [
-                        { 'value': 'yes', 'title': 'On', 'selected': orig.tc }
-                    ]
-                }],
-            ],
-            'event': {
-                'change': function( event ) {
-                    ui.clock(event.data.clock == '24');
-                    ui.theme(event.data.theme);
-                    ui.nav.closer(event.data.tabclose.indexOf('yes') > -1);
-                },
-                'save': function( event ) {
-                    orig.clock = ui.clock();
-                    orig.theme = replaceAll(ui.theme(), 'wsct_', '');
-                    orig.tc = ui.nav.closer();
-                    
-                    ui.trigger('settings.save.ui', {
-                        'clock': orig.clock,
-                        'tabclose': orig.tc,
-                        'theme': 'wsct_' + orig.theme
-                    } );
-                },
-                'close': function( event ) {
-                    ui.clock(orig.clock);
-                    ui.theme(orig.theme);
-                    ui.nav.closer(orig.tc);
-                }
-            }
-        });
-        
-        page.item('Form', {
-            'ref': 'developer',
-            'title': 'Developer Mode',
-            'text': 'Turn developer mode on or off.\n\nDeveloper mode will expose any hidden\
-                channel tabs, amongst other things. Keep this turned off unless you\'re working\
-                on implementing something.',
-            'fields': [
-                ['Checkbox', {
-                    'ref': 'enabled',
-                    'items': [
-                        { 'value': 'on', 'title': 'On', 'selected': orig.devel }
-                    ]
-                }]
-            ],
-            'event': {
-                'change': function( event ) {
-                    client.settings.developer = (event.data.enabled.indexOf('on') != -1);
-                    ui.developer(client.settings.developer);
-                },
-                'save': function( event ) {
-                    orig.devel = client.settings.developer;
-                },
-                'close': function( event ) {
-                    client.settings.developer = orig.devel;
-                    ui.developer(client.settings.developer);
-                }
-            }
-        });
-        
-        page.item('Text', {
-            'ref': 'debug',
-            'wclass': 'faint',
-            'title': 'Debug Information',
-            'text': 'Chat Agent: <code>' + client.settings.agent + '</code>\n\nUser\
-                    Agent: <code>' + navigator.userAgent + '</code>'
-        });
-    
-    };
-        
-    ext.page.about = function( e, ui ) {
-    
-        var page = e.settings.page('About', true);
-        page.item('Text', {
-            'ref': 'about-wsc',
-            'title': 'Wsc',
-            'text': 'Currently using <a href="http://github.com/photofroggy/wsc/">wsc</a>\
-                    version ' + wsc.VERSION + ' ' + wsc.STATE + '.\n\nWsc\
-                    works using HTML5, javascript, and CSS3. WebSocket is used for the connection\
-                    where possible. The source code for this client is pretty huge.\n\nWsc was created\
-                    by ~<a href="http://photofroggy.deviantart.com/">photofroggy</a>'
-        });
-    
-    };
-    
-    
-    init();
-    
-    return ext;
-
-};
-
-/**
- * Navigation UI element. Provides helpers for controlling the chat navigation.
- *
- * @class Chatterbox.Navigation
+ * Log message object represents a log message.
+ * @class Chatterbox.Protocol.LogMessage
  * @constructor
- * @param ui {Object} Chatterbox.UI object.
+ * @param event {Object} Event data
+ * @param options {Array} Log message options
  */
-Chatterbox.Navigation = function( ui ) {
-
-    this.manager = ui;
-    this.showclose = this.manager.settings.tabclose;
-    this.settings = {};
-    this.settings.open = false;
+Chatterbox.Protocol.LogMessage = function( event, options ) {
     
-    /* UI Elements
-     * Something similar to the channel elements object.
-     */
-    this.el = {
-        n: this.manager.view.find('nav.tabs'),                            // Navigation bar
-        tw: this.manager.view.find('nav.tabs div.tabwrap'),
-        t: this.manager.view.find('nav.tabs #chattabs'),                  // Tabs
-        b: this.manager.view.find('nav.tabs #tabnav'),                    // Buttons
-        l: this.manager.view.find('nav.tabs #tabnav .arrow_left'),        // Tab left navigation button
-        r: this.manager.view.find('nav.tabs #tabnav .arrow_right'),       // Tab right.
-        s: this.manager.view.find('nav.tabs #tabnav #settings-button'),   // Settings
-    };
+    options = options || {};
     
-    if( !this.showclose ) {
-        if( !this.el.t.hasClass('hc') )
-            this.el.t.addClass('hc');
-    }
-    
-    var nav = this;
-    this.el.s.click(
-        function( event ) {
-            if( nav.settings.open )
-                return false;
-            
-            var evt = {
-                'e': event,
-                'settings': new Chatterbox.Settings.Config(nav.manager)
-            };
-            
-            //nav.configure_page( evt );
-            nav.manager.trigger('settings.open', evt);
-            nav.manager.trigger('settings.open.ran', evt);
-            
-            var about = evt.settings.page('About');
-            about.item('text', {
-                'ref': 'about-chatterbox',
-                'wclass': 'centered faint',
-                'text': 'Using <a href="http://github.com/photofroggy/wsc/">Chatterbox</a> version ' + Chatterbox.VERSION + ' ' + Chatterbox.STATE + ' by ~<a href="http://photofroggy.deviantart.com/">photofroggy</a>.'
-            });
-            
-            nav.settings.window = new Chatterbox.Settings( nav.manager, evt.settings );
-            nav.settings.window.build();
-            nav.settings.open = true;
-            return false;
-        }
-    );
-    
-    this.el.l.click(
-        function(  ) {
-            nav.manager.channel_left();
-            return false;
-        }
-    );
-    
-    this.el.r.click(
-        function(  ) {
-            nav.manager.channel_right();
-            return false;
-        }
-    );
+    this.event = event;
+    this.template = options.template || '';
+    this.keys = options.keys || [];
+    this.monitor = options.monitor || false;
+    this.global = options.global || false;
+    this._html = false;
+    this._text = false;
+    this._ansi = false;
 
 };
 
 /**
- * Configure the main settings page of the settings popup.
- *
- * @method configure_page
- * @param event {Object} Event object.
+ * Get a text rendition.
+ * @method text
+ * @return {String} Rendered message
  */
-Chatterbox.Navigation.prototype.configure_page = function( event ) {
+Chatterbox.Protocol.LogMessage.prototype.text = function(  ) {
 
-    var ui = this.manager;
-    var page = event.settings.page('Main');
-    var orig = {};
-    orig.theme = replaceAll(ui.settings.theme, 'wsct_', '');
-    orig.clock = ui.clock();
-    orig.tc = ui.nav.closer();
+    if( this._text === false )
+        this._text = this.render( 0 );
     
-    var themes = [];
-    for( i in ui.settings.themes ) {
-        name = replaceAll(ui.settings.themes[i], 'wsct_', '');
-        themes.push({ 'value': name, 'title': name, 'selected': orig.theme == name })
-    }
+    return this._text;
+
+};
+
+/**
+ * Get an HTML rendition.
+ * @method html
+ * @return {String} Rendered message
+ */
+Chatterbox.Protocol.LogMessage.prototype.html = function(  ) {
+
+    if( this._html === false )
+        this._html = this.render( 1 );
     
-    page.item('Form', {
-        'ref': 'ui',
-        'title': 'UI',
-        'hint': '<b>Timestamp</b><br/>Choose between a 24 hour clock and\
-                a 12 hour clock.\n\n<b>Theme</b><br/>Change the look of the\
-                client.\n\n<b>Close Buttons</b><br/>Turn tab close buttons on/off.',
-        'fields': [
-            ['Dropdown', {
-                'ref': 'theme',
-                'label': 'Theme',
-                'items': themes
-            }],
-            ['Dropdown', {
-                'ref': 'clock',
-                'label': 'Timestamp Format',
-                'items': [
-                    { 'value': '24', 'title': '24 hour', 'selected': orig.clock },
-                    { 'value': '12', 'title': '12 hour', 'selected': !orig.clock }
-                ]
-            }],
-            ['Checkbox', {
-                'ref': 'tabclose',
-                'label': 'Close Buttons',
-                'items': [
-                    { 'value': 'yes', 'title': 'On', 'selected': orig.tc }
-                ]
-            }],
-        ],
-        'event': {
-            'change': function( event ) {
-                ui.clock(event.data.clock == '24');
-                ui.theme(event.data.theme);
-                ui.nav.closer(event.data.tabclose.indexOf('yes') > -1);
-            },
-            'save': function( event ) {
-                orig.clock = ui.clock();
-                orig.theme = replaceAll(ui.theme(), 'wsct_', '');
-                orig.tc = ui.nav.closer();
-                
-                ui.trigger('settings.save.ui', {
-                    'clock': orig.clock,
-                    'tabclose': orig.tc,
-                    'theme': 'wsct_' + orig.theme
-                } );
-            },
-            'close': function( event ) {
-                ui.clock(orig.clock);
-                ui.theme(orig.theme);
-                ui.nav.closer(orig.tc);
+    return this._html;
+
+};
+
+/**
+ * Get an ANSI rendition.
+ * @method ansi
+ * @return {String} Rendered message
+ */
+Chatterbox.Protocol.LogMessage.prototype.ansi = function(  ) {
+
+    if( this._ansi === false )
+        this._ansi = this.render( 2 );
+    
+    return this._ansi;
+
+};
+
+/**
+ * Render a log message in the given format.
+ * 
+ * @method render
+ * @param [format=0] {Integer} What rendering format to use. 0 is text, 1 is
+ *      html, 2 is ansi.
+ * @return {String} Rendered event
+ */
+Chatterbox.Protocol.LogMessage.prototype.render = function( format ) {
+    
+    if( format === undefined )
+        format = 0;
+    
+    /*
+    var render = this.render[ format ];
+    
+    try {
+        return render( this, this.event );
+    } catch( err ) {
+    */
+    
+    var render = this.template;
+    var d = '';
+    
+    for( var i in this.keys ) {
+    
+        if( !this.keys.hasOwnProperty( i ) )
+            continue;
+        
+        key = this.keys[i];
+        
+        if( key instanceof Array )
+            key = key[1];
+        
+        if( key == 'pkt' )
+            continue;
+        
+        d = this.event[key] || '';
+        
+        if( d == null )
+            continue;
+        
+        if( key == 'ns' || key == 'sns' ) {
+            key = 'ns';
+            d = this.event['sns'] || d;
+        }
+        
+        if( d.hasOwnProperty('_parser') ) {
+            switch(format) {
+                case 1:
+                    d = d.html();
+                    break;
+                case 2:
+                    d = d.ansi();
+                    break;
+                case 0:
+                default:
+                    d = d.text();
+                    break;
             }
         }
-    });
-
-};
-
-/**
- * Get the height of the navigation bar.
- *
- * @method height
- * @return {Integer} The height of the navigation bar in pixels.
- */
-Chatterbox.Navigation.prototype.height = function(  ) {
-    var h = this.el.n.outerHeight();
-    return h;
-};
-
-/**
- * Add a button to the top button row.
- *
- * @method add_button
- */
-Chatterbox.Navigation.prototype.add_button = function( options ) {
-
-    options = Object.extend( {
-        'label': 'New',
-        'icon': false,
-        'href': '#button',
-        'title': 'Button.',
-        'handler': function(  ) {}
-    }, ( options || {} ) );
-    
-    if( options.icon !== false ) {
-        options.icon = ' iconic ' + options.icon;
-    } else {
-        options.icon = ' text';
+        
+        render = replaceAll( render, '{' + key + '}', d );
+        
     }
     
-    this.el.b.prepend(Chatterbox.render('nav_button', options));
-    var button = this.el.b.find('a[href='+options.href+'].button');
-    
-    button.click( function( event ) {
-        options['handler']();
-        return false;
-    } );
-    
-    this.resize();
-    
-    return button;
+    return render;
 
 };
-
-/**
- * Add a channel tab to the navigation bar.
- * 
- * @method add_tab
- * @param selector {String} Shorthand lower case name for the channel with no prefixes.
- * @param ns {String} Shorthand namespace for the channel. Used as the label
- *   for the tab.
- */
-Chatterbox.Navigation.prototype.add_tab = function( selector, ns ) {
-    this.el.t.append(Chatterbox.render('tab', {'selector': selector, 'ns': ns}));
-    return this.el.t.find('#' + selector + '-tab');
-};
-
-/**
- * Resize the tab bar.
- * 
- * @method resize
- */
-Chatterbox.Navigation.prototype.resize = function(  ) {
-
-    this.el.tw.width( this.el.n.width() - this.el.b.outerWidth() - 20 );
-    if( this.settings.open ) {
-        this.settings.window.resize();
-    }
-
-};
-
-/**
- * Set or get the visibility of tab close buttons.
- * 
- * @method closer
- * @param [visible] {Boolean} Should the close buttons be shown?
- * @return {Boolean} Whether or not the close buttons are visible.
- */
-Chatterbox.Navigation.prototype.closer = function( visible ) {
-
-    if( visible == undefined || visible == this.showclose )
-        return this.showclose;
-    
-    this.showclose = visible;
-    if( this.showclose ) {
-        if( !this.el.t.hasClass('hc') )
-            return;
-        this.el.t.removeClass('hc');
-        return;
-    }
-    
-    if( this.el.t.hasClass('hc') )
-        return;
-    this.el.t.addClass('hc');
-
-};
-
 
 
 /**
@@ -4312,363 +4468,6 @@ Chatterbox.Popup.ItemPicker.Page.prototype.hide = function(  ) {
 
 
 
-
-/**
- * Rendering for dAmn-like protocols.
- *
- * This object is mainly used for constructing LogMessage objects with the
- * right data. Seemed to make more sense than having multiple definitions of
- * LogMessage and/or if...else/switch...case blocks.
- * 
- * @class Chatterbox.Protocol
- * @constructor
- */
-Chatterbox.Protocol = function(  ) {
-
-    /**
-     * Messages object.
-     * 
-     * This object determines how each protocol packet should be rendered based
-     * data from an `event object`. For each packet, there is an entry, where the key is the
-     * {{#crossLink "Chatterbox.Protocol/event:method"}}event name{{/crossLink}} of the packet.
-     * 
-     * Each entry is an array. The array consists of options for rendering and
-     * logging. The array is of the structure `[ renderers, monitor, global ]`.
-     * All items are optional, but positional. There are default options that
-     * can be used.
-     * 
-     * When `renderers` is present it must be an array. This array contains
-     * renderers for different kinds of formats. Renderers can be either a
-     * formatted string or a callback that returns a string. There must be at
-     * least one renderer, for text output. Otherwise the array should contain
-     * a renderer for text ouput, a renderer for HTML output, and a renderer
-     * for ANSI output. If a renderer is missing then everything falls back to
-     * text renderer.
-     * 
-     * The `monitor` option determines whether or not to display the log
-     * message in the monitor channel. The default for this is `false`.
-     * 
-     * The `global` option determines whether or not to display the log message
-     * in every open channel. The default for this is also `false`.
-     * 
-     * An example for an entry in this object:
-     *      
-     *      { 'join': [
-     *          [
-     *              '** Join {ns}: "{e}" *',
-     *              '<span class="servermsg">** Join {ns}: "{e}" *</span>'
-     *          ],
-     *          true
-     *      ] }
-     * 
-     * This shows how the join packet will render in the monitor channel. If a
-     * channel is set to display in the monitor channel, then it should not
-     * be displayed in the event channel.
-     *
-     * At the moment, we only have to render using HTML, so the `renderers`
-     * array in the entries are only HTML renderers at the moment. No array,
-     * just formatting strings.
-     * 
-     * To display absolutely nothing for an event, the whole entry can simply
-     * be `null`.
-     * @property messages
-     * @type Object
-     */
-    this.messages = {
-        'chatserver': {
-            keys: [ 'version' ],
-            template: '<span class="servermsg">** Connected to llama {version} *</span>',
-            global: true
-        },
-        'dAmnServer': {
-            keys: [ 'version' ],
-            template: '<span class="servermsg">** Connected to dAmnServer {version} *</span>',
-            global: true
-        },
-        'login': {
-            keys: [ 'username', 'e', 'data' ],
-            template: '<span class="servermsg">** Login as {username}: "{e}" *</span>',
-            global: true
-        },
-        'join': {
-            keys: [ 'ns', 'e' ],
-            template: '<span class="servermsg">** Join {ns}: "{e}" *</span>',
-            monitor: true
-        },
-        'part': {
-            keys: [ 'ns', 'e', 'r' ],
-            template: '<span class="servermsg">** Part {ns}: "{e}" * <em>{r}</em></span>',
-            monitor: true
-        },
-        'property': {
-            keys: [ 'ns', 'p', 'by', 'ts', 'value' ],
-            template: '<span class="servermsg">** Got {p} for {ns} *</span>',
-            monitor: true
-        },
-        'recv_msg': {
-            keys: [ 'user', 'message' ],
-            template: '<span class="cmsg user u-{user}"><strong>&lt;{user}&gt;</strong></span><span class="cmsg u-{user}">{message}</span>'
-        },
-        /*
-        'recv_npmsg': {
-            keys: [ 'user', 'message' ],
-            template: '<span class="cmsg user u-{user}"><strong>&lt;{user}&gt;</strong></span><span class="cmsg u-{user}">{message}</span>'
-        },
-        */
-        'recv_action': {
-            keys: [ 's', 'user', 'message' ],
-            template: '<span class="caction user u-{user}"><em>* {user}</em></span><span class="caction u-{user}">{message}</span>'
-        },
-        'recv_join': {
-            keys: [ 'user', 's', 'info' ],
-            template: '<span class="cevent bg">** {user} has joined *</span>',
-        },
-        'recv_part': {
-            keys: [ 'user', 'r' ],
-            template: '<span class="cevent bg">** {user} has left * <em>{r}</em></span>'
-        },
-        'recv_privchg': {
-            keys: [ 'user', 's', 'by', 'pc' ],
-            template: '<span class="cevent">** {user} has been made a member of {pc} by {by} *</span>'
-        },
-        'recv_kicked': {
-            keys: [ 'user', 's', 'by', 'r' ],
-            template: '<span class="cevent">** {user} has been kicked by {by} * <em>{r}</em></span>'
-        },
-        'recv_admin_create': {
-            keys: [ 'p', 'user', 'pc', 'privs' ],
-            template: '<span class="cevent admin">** Privilege class {pc} has been created by {user} * <em>{privs}</em></span>'
-        },
-        'recv_admin_update': {
-            keys: [ 'p', 'user', 'pc', 'privs' ],
-            template: '<span class="cevent admin">** Privilege class {pc} has been updated by {user} * <em>{privs}</em></span>'
-        },
-        'recv_admin_rename': {
-            keys: [ 'p', 'user', 'prev', 'pc' ],
-            template: '<span class="cevent admin">** Privilege class {prev} has been renamed to {pc} by {user} *</span>'
-        },
-        'recv_admin_move': {
-            keys: [ 'p', 'user', 'prev', 'pc', 'affected' ],
-            template: '<span class="cevent admin">** All members of {prev} have been moved to {pc} by {user} * <em>{affected} affected user(s)</em></span>'
-        },
-        'recv_admin_remove': {
-            keys: [ 'p', 'user', 'pc', 'affected' ],
-            template: '<span class="cevent admin">** Privilege class {pc} has been removed by {user} * <em>{affected} affected user(s)</em></span>'
-        },
-        'recv_admin_show': null,
-        'recv_admin_showverbose': null,
-        'recv_admin_privclass': {
-            keys: [ 'p', 'e', 'command' ],
-            template: '<span class="cevent admin">** Admin command "{command}" failed * <em>{e}</em></span>'
-        },
-        'kicked': {
-            keys: [ 'ns', 'user', 'r' ],
-            template: '<span class="servermsg">** You have been kicked by {user} * <em>{r}</em></span>'
-        },
-        'ping': null, //['<span class="servermsg">** Ping...</span>', true],
-        'disconnect': {
-           keys: [ 'e' ],
-           template: '<span class="servermsg">** You have been disconnected * <em>{e}</em></span>',
-           global: true
-        },
-        // Stuff here is errors, yes?
-        'send': {
-            keys: [ 'ns', 'e' ],
-            template: '<span class="servermsg">** Send error: <em>{e}</em></span>'
-        },
-        'kick': {
-            keys: [ 'ns', 'user', 'e' ],
-            template: '<span class="servermsg">** Could not kick {user} * <em>{e}</em></span>'
-        },
-        'get': {
-            keys: [ 'ns', 'p', 'e' ],
-            template: '<span class="servermsg">** Could not get {p} info for {ns} * <em>{e}</em></span>'
-        },
-        'set': {
-            keys: [ 'ns', 'p', 'e' ],
-            template: '<span class="servermsg">** Could not set {p} * <em>{e}</em></span>'
-        },
-        'kill': {
-            keys: [ 'ns', 'e' ],
-            template: '<span class="servermsg">** Kill error * <em>{e}</em></span>'
-        },
-        'log': {
-            keys: [ 'ns', 'msg', 'info' ],
-            template: '<span class="servermsg">** {msg} * <em>{info}</em></span>'
-        },
-        'unknown': {
-            keys: [ 'ns', 'packet' ],
-            template: '<span class="servermsg">** Received unknown packet in {ns} * <em>{packet}</em></span>',
-            monitor: true
-        }
-    };
-
-};
-
-/**
- * Extend the protocol message renderers.
- * 
- * @method extend_messages
- * @param messages {Object} An object containing packet rendering methods.
- */
-Chatterbox.Protocol.prototype.extend_messages = function( messages ) {
-
-    for( var key in messages ) {
-        if( !this.messages.hasOwnProperty(key) )
-            continue;
-        this.messages[key] = messages[key];
-    }
-
-};
-
-/**
- * Produce a log message for an event.
- * @method log
- * @param event {Object} Event data to produce a log message with
- * @return {Object} A log message object on success. Null if failed.
- */
-Chatterbox.Protocol.prototype.log = function( event ) {
-
-    var msgm = this.messages[event.name];
-    //console.log(this.map[event.name]);
-    return new Chatterbox.Protocol.LogMessage( event, msgm );
-
-};
-
-
-/**
- * Log message object represents a log message.
- * @class Chatterbox.Protocol.LogMessage
- * @constructor
- * @param event {Object} Event data
- * @param options {Array} Log message options
- */
-Chatterbox.Protocol.LogMessage = function( event, options ) {
-    
-    options = options || {};
-    
-    this.event = event;
-    this.template = options.template || '';
-    this.keys = options.keys || [];
-    this.monitor = options.monitor || false;
-    this.global = options.global || false;
-    this._html = false;
-    this._text = false;
-    this._ansi = false;
-
-};
-
-/**
- * Get a text rendition.
- * @method text
- * @return {String} Rendered message
- */
-Chatterbox.Protocol.LogMessage.prototype.text = function(  ) {
-
-    if( this._text === false )
-        this._text = this.render( 0 );
-    
-    return this._text;
-
-};
-
-/**
- * Get an HTML rendition.
- * @method html
- * @return {String} Rendered message
- */
-Chatterbox.Protocol.LogMessage.prototype.html = function(  ) {
-
-    if( this._html === false )
-        this._html = this.render( 1 );
-    
-    return this._html;
-
-};
-
-/**
- * Get an ANSI rendition.
- * @method ansi
- * @return {String} Rendered message
- */
-Chatterbox.Protocol.LogMessage.prototype.ansi = function(  ) {
-
-    if( this._ansi === false )
-        this._ansi = this.render( 2 );
-    
-    return this._ansi;
-
-};
-
-/**
- * Render a log message in the given format.
- * 
- * @method render
- * @param [format=0] {Integer} What rendering format to use. 0 is text, 1 is
- *      html, 2 is ansi.
- * @return {String} Rendered event
- */
-Chatterbox.Protocol.LogMessage.prototype.render = function( format ) {
-    
-    if( format === undefined )
-        format = 0;
-    
-    /*
-    var render = this.render[ format ];
-    
-    try {
-        return render( this, this.event );
-    } catch( err ) {
-    */
-    
-    var render = this.template;
-    var d = '';
-    
-    for( var i in this.keys ) {
-    
-        if( !this.keys.hasOwnProperty( i ) )
-            continue;
-        
-        key = this.keys[i];
-        
-        if( key instanceof Array )
-            key = key[1];
-        
-        if( key == 'pkt' )
-            continue;
-        
-        d = this.event[key] || '';
-        
-        if( d == null )
-            continue;
-        
-        if( key == 'ns' || key == 'sns' ) {
-            key = 'ns';
-            d = this.event['sns'] || d;
-        }
-        
-        if( d.hasOwnProperty('_parser') ) {
-            switch(format) {
-                case 1:
-                    d = d.html();
-                    break;
-                case 2:
-                    d = d.ansi();
-                    break;
-                case 0:
-                default:
-                    d = d.text();
-                    break;
-            }
-        }
-        
-        render = replaceAll( render, '{' + key + '}', d );
-        
-    }
-    
-    return render;
-
-};
 
 /**
  * Settings popup window.
@@ -6934,4 +6733,333 @@ Chatterbox.template.settings.item.form.field.colour.post = Chatterbox.template.c
 Chatterbox.template.settings.item.form.field.colour.frame = '<input class="{ref}" type="color" value="{default}" />';
 
 
+
+
+
+Chatterbox.Extension = function( ui, client ) {
+
+    var storage = client.storage.folder('ui');
+    var ext = {
+        page: {}
+    };
+    
+    ui.storage = storage;
+    
+    var init = function(  ) {
+    
+        ui.on('settings.open', ext.page.settings);
+        ui.on('settings.open.ran', ext.page.about);
+        ui.on('settings.save.ui', ext.save);
+        ui.on('settings.save', function(  ) { client.config_save(); } );
+        
+        Chatterbox.Extension.Away( ui, client, ext );
+        
+        ext.load();
+        ext.save();
+        
+    };
+    
+    ext.save = function(  ) {
+        storage.set('theme', ui.settings.theme);
+        storage.set('clock', ui.settings.clock.toString());
+        storage.set('tabclose', ui.settings.tabclose.toString());
+    };
+    
+    ext.load = function(  ) {
+    
+        ui.settings.theme = storage.get('theme', ui.settings.theme);
+        ui.settings.clock = (storage.get('clock', ui.settings.clock.toString()) == 'true');
+        ui.settings.tabclose = (storage.get('tabclose', ui.settings.tabclose.toString()) == 'true');
+    
+    };
+    
+    ext.page.settings = function( e, ui ) {
+        
+        console.log('>> main settings');
+        var page = e.settings.page('Main');
+        var orig = {};
+        orig.username = client.settings.username;
+        orig.pk = client.settings.pk;
+        orig.devel = client.settings.developer;
+        orig.theme = replaceAll(ui.settings.theme, 'wsct_', '');
+        orig.clock = ui.clock();
+        orig.tc = ui.nav.closer();
+    
+        var themes = [];
+        for( i in ui.settings.themes ) {
+            name = replaceAll(ui.settings.themes[i], 'wsct_', '');
+            themes.push({ 'value': name, 'title': name, 'selected': orig.theme == name })
+        }
+        
+        page.item('Text', {
+            'ref': 'intro',
+            'title': 'Main',
+            'text': 'Use this window to view and change your settings.\n\nCheck\
+                    the different pages to see what settings can be changed.',
+        });
+        
+        page.item('Form', {
+            'ref': 'login',
+            'title': 'Login',
+            'text': 'Here you can change the username and token used to\
+                    log into the chat server.',
+            'fields': [
+                ['Textfield', {
+                    'ref': 'username',
+                    'label': 'Username',
+                    'default': orig.username
+                }],
+                ['Textfield', {
+                    'ref': 'token',
+                    'label': 'Token',
+                    'default': orig.pk
+                }]
+            ],
+            'event': {
+                'save': function( event ) {
+                    client.settings.username = event.data.username;
+                    client.settings.pk = event.data.token;
+                }
+            }
+        });
+        
+        page.item('Form', {
+            'ref': 'ui',
+            'title': 'UI',
+            'hint': '<b>Timestamp</b><br/>Choose between a 24 hour clock and\
+                    a 12 hour clock.\n\n<b>Theme</b><br/>Change the look of the\
+                    client.\n\n<b>Close Buttons</b><br/>Turn tab close buttons on/off.',
+            'fields': [
+                ['Dropdown', {
+                    'ref': 'theme',
+                    'label': 'Theme',
+                    'items': themes
+                }],
+                ['Dropdown', {
+                    'ref': 'clock',
+                    'label': 'Timestamp Format',
+                    'items': [
+                        { 'value': '24', 'title': '24 hour', 'selected': orig.clock },
+                        { 'value': '12', 'title': '12 hour', 'selected': !orig.clock }
+                    ]
+                }],
+                ['Checkbox', {
+                    'ref': 'tabclose',
+                    'label': 'Close Buttons',
+                    'items': [
+                        { 'value': 'yes', 'title': 'On', 'selected': orig.tc }
+                    ]
+                }],
+            ],
+            'event': {
+                'change': function( event ) {
+                    ui.clock(event.data.clock == '24');
+                    ui.theme(event.data.theme);
+                    ui.nav.closer(event.data.tabclose.indexOf('yes') > -1);
+                },
+                'save': function( event ) {
+                    orig.clock = ui.clock();
+                    orig.theme = replaceAll(ui.theme(), 'wsct_', '');
+                    orig.tc = ui.nav.closer();
+                    
+                    ui.trigger('settings.save.ui', {
+                        'clock': orig.clock,
+                        'tabclose': orig.tc,
+                        'theme': 'wsct_' + orig.theme
+                    } );
+                },
+                'close': function( event ) {
+                    ui.clock(orig.clock);
+                    ui.theme(orig.theme);
+                    ui.nav.closer(orig.tc);
+                }
+            }
+        });
+        
+        page.item('Form', {
+            'ref': 'developer',
+            'title': 'Developer Mode',
+            'text': 'Turn developer mode on or off.\n\nDeveloper mode will expose any hidden\
+                channel tabs, amongst other things. Keep this turned off unless you\'re working\
+                on implementing something.',
+            'fields': [
+                ['Checkbox', {
+                    'ref': 'enabled',
+                    'items': [
+                        { 'value': 'on', 'title': 'On', 'selected': orig.devel }
+                    ]
+                }]
+            ],
+            'event': {
+                'change': function( event ) {
+                    client.settings.developer = (event.data.enabled.indexOf('on') != -1);
+                    ui.developer(client.settings.developer);
+                },
+                'save': function( event ) {
+                    orig.devel = client.settings.developer;
+                },
+                'close': function( event ) {
+                    client.settings.developer = orig.devel;
+                    ui.developer(client.settings.developer);
+                }
+            }
+        });
+        
+        page.item('Text', {
+            'ref': 'debug',
+            'wclass': 'faint',
+            'title': 'Debug Information',
+            'text': 'Chat Agent: <code>' + client.settings.agent + '</code>\n\nUser\
+                    Agent: <code>' + navigator.userAgent + '</code>'
+        });
+    
+    };
+        
+    ext.page.about = function( e, ui ) {
+    
+        var page = e.settings.page('About', true);
+        page.item('Text', {
+            'ref': 'about-wsc',
+            'title': 'Wsc',
+            'text': 'Currently using <a href="http://github.com/photofroggy/wsc/">wsc</a>\
+                    version ' + wsc.VERSION + ' ' + wsc.STATE + '.\n\nWsc\
+                    works using HTML5, javascript, and CSS3. WebSocket is used for the connection\
+                    where possible. The source code for this client is pretty huge.\n\nWsc was created\
+                    by ~<a href="http://photofroggy.deviantart.com/">photofroggy</a>'
+        });
+    
+    };
+    
+    
+    init();
+    
+    return ext;
+
+};
+
+
+
+Chatterbox.Extension.Away = function( ui, client, ext ) {
+
+    ext.away = {};
+    
+    var settings = client.ext.defaults.away;
+    
+    var init = function() {
+    
+        ui.on('settings.open', ext.away.page);
+        client.bind( 'ext.away.away', ext.away.away );
+        client.bind( 'ext.away.back', ext.away.back );
+    
+    };
+    
+    ext.away.page = function( event, ui ) {
+    
+        var strips = function( data ) {
+            data = replaceAll(data, '<', '&lt;');
+            data = replaceAll(data, '>', '&gt;');
+            data = replaceAll(data, '"', '&quot;');
+            return data;
+        };
+        var unstrips = function( data ) {
+            data = replaceAll(data, '&lt;', '<');
+            data = replaceAll(data, '&gt;', '>');
+            data = replaceAll(data, '&quot;', '"');
+            return data;
+        };
+        
+        var page = event.settings.page('Away');
+        var orig = {};        
+        orig.away = settings.format.away;
+        orig.sa = settings.format.setaway;
+        orig.sb = settings.format.setback;
+        orig.intr = settings.interval;
+        
+        page.item('Text', {
+            'ref': 'intro',
+            'title': 'Away Messages',
+            'text': 'Use away messages when you are away from the chats.\n\n\
+                    You can set yourself away using the \
+                    <code>/setaway [reason]</code> command. When you get back,\
+                    use <code>/setback</code>. While you are away, the client\
+                    will automatically respond when people try to talk to you,\
+                    telling them you\'re away.',
+        });
+        
+        page.item('Form', {
+            'ref': 'msgs',
+            'title': 'Messages',
+            'text': 'Here you can set the messages displayed when you set\
+                    yourself away or back. You can also change the away message\
+                    format.',
+            'hint': '<b>{user}</b><br/>This is replaced with the username of the person trying to talk to you\n\n<b>{reason}</b>\
+                    <br/>This is replaced by your reason for being away.\n\n<b>{timesince}</b>\
+                    <br/>Use this to show how long you have been away for.',
+            'fields': [
+                ['Textfield', {
+                    'ref': 'away',
+                    'label': 'Away',
+                    'default': strips(orig.away)
+                }],
+                ['Textfield', {
+                    'ref': 'setaway',
+                    'label': 'Setaway',
+                    'default': strips(orig.sa)
+                }],
+                ['Textfield', {
+                    'ref': 'setback',
+                    'label': 'Setback',
+                    'default': strips(orig.sb)
+                }]
+            ],
+            'event': {
+                'save': function( event ) {
+                    settings.format.away = unstrips(event.data.away);
+                    settings.format.setaway = unstrips(event.data.setaway);
+                    settings.format.setback = unstrips(event.data.setback);
+                    settings.save();
+                }
+            }
+        });
+        
+        page.item('Form', {
+            'ref': 'interval',
+            'title': 'Message Interval',
+            'text': 'Here you can set the amount of time to wait before \
+                    displaying another away message. The interval is in seconds.',
+            'fields': [
+                ['Textfield', {
+                    'ref': 'interval',
+                    'label': 'Interval',
+                    'default': (orig.intr / 1000).toString()
+                }]
+            ],
+            'event': {
+                'save': function( event ) {
+                    settings.interval = parseInt(event.data.interval) * 1000;
+                    settings.save();
+                }
+            }
+        });
+    
+    };
+    
+    ext.away.away = function( event ) {
+    
+        ui.control.add_state({
+            'ref': 'away',
+            'label': 'Away, reason: <i>' + event.reason + '</i>'
+        });
+    
+    };
+    
+    ext.away.back = function( event ) {
+    
+        ui.control.rem_state('away');
+    
+    };
+    
+    init();
+
+};
 
