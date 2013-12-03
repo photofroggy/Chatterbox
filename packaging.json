@@ -12,7 +12,8 @@
             "mini": "dist/extension.min.js",
             "files": [
                 "src/extension/base.js",
-                "src/extension/away.js"
+                "src/extension/away.js",
+                "src/extension/autojoin.js"
             ]
         },
         {

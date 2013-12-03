@@ -26,6 +26,7 @@ Chatterbox.Extension = function( ui, client ) {
         client.bind( 'cmd.theme', ext.cmd.theme );
         
         Chatterbox.Extension.Away( ui, client, ext );
+        Chatterbox.Extension.Autojoin( ui, client, ext );
         
         ext.load();
         ext.save();
@@ -48,7 +49,6 @@ Chatterbox.Extension = function( ui, client ) {
     
     ext.page.settings = function( e, ui ) {
         
-        console.log('>> main settings');
         var page = e.settings.page('Main');
         var orig = {};
         orig.username = client.settings.username;

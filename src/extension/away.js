@@ -9,6 +9,8 @@ Chatterbox.Extension.Away = function( ui, client, ext ) {
     var init = function() {
     
         ui.on('settings.open', ext.away.page);
+        ui.on('settings.save', settings.save);
+        
         client.bind( 'ext.away.away', ext.away.away );
         client.bind( 'ext.away.back', ext.away.back );
     
