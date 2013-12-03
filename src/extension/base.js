@@ -27,6 +27,7 @@ Chatterbox.Extension = function( ui, client ) {
         
         Chatterbox.Extension.Away( ui, client, ext );
         Chatterbox.Extension.Autojoin( ui, client, ext );
+        Chatterbox.Extension.Ignore( ui, client, ext );
         
         ext.load();
         ext.save();

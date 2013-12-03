@@ -13,7 +13,8 @@
             "files": [
                 "src/extension/base.js",
                 "src/extension/away.js",
-                "src/extension/autojoin.js"
+                "src/extension/autojoin.js",
+                "src/extension/ignore.js"
             ]
         },
         {
